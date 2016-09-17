@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>My first Three.js app</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+		<script src="js/math.js/math.min.js"></script>
+		<script src="js/three.js/build/three.min.js"></script>
+		<script src="js/three.js/OrbitControls.js"></script>
+		<script>
+			var scene, camera, renderer, controls;
+			var geometry, material, mesh;
+
+			var tick = 0;
+
+			//var M = {}; //new THREE.Matrix4();
+			var q = {};
+			var dh;
+			var n_joints;
+			var Tx, Tz;
+
+			var joints = {};
+			var geometries = {};
+			var materials = {};
+			var frames = {};
+			var length = {};
+
+			var arrowHelperX = {};
+			var arrowHelperY = {};
+			var arrowHelperZ = {};
+			var dirX = {};
+			var dirY = {};
+			var dirZ = {};
+			var origin =  {};
+			var arrlength = 100;
+			var hexX = 0xff0000;
+			var hexY = 0x00ff00;
+			var hexZ = 0x0000ff;
+			var headLength = 15;
+			var widthLength = 15;
+
+			init();
+			animate();
+
+			function init() {
+					scene = new THREE.Scene();
+
+					var parser = math.parser();
+
+					parser.eval(
+						`dh(q1,q2,q3) =
+						[0,   0, 0, q1;
+						 0, 200, 0, q2;
+					   0, 1000, 0,  q3]`
+					);
+					parser.eval(
+						`Tz(th, d) =
+						[cos(th), -sin(th), 0, 0;
+						 sin(th),  cos(th), 0, 0;
+					         0,        0, 1, d;
+						       0,        0, 0, 1]`
+					 );
+					 parser.eval(
+						 `Tx(al, a) =
+						 [1,       0,        0, a;
+						  0, cos(al), -sin(al), 0;
+							0, sin(al),  cos(al), 0;
+							0,       0,        0, 1]`
+					 );
+					dhf = parser.get('dh');
+					Tz = parser.get('Tz');
+					Tx = parser.get('Tx');
+
+					dh = dhf(0, 0, 0).toArray();
+					n_joints = dh.length;
+					console.log('N joints:' + n_joints);
+
+					robot_arm = new THREE.Group();
+
+					// Initialize q vector to initial configuration
+					for (var i=0; i<n_joints; i++)
+						q[i] = 0;
+
+					/*
+					 * Frame zero
+					 */
+					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 1, 0, 0 ), new THREE.Vector3( 0, 0, 0 ), 200, hexX, headLength, widthLength ) );
+					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 0, 1, 0 ), new THREE.Vector3( 0, 0, 0 ), 200, hexY, headLength, widthLength ) );
+					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 0, 0, 1 ), new THREE.Vector3( 0, 0, 0 ), 200, hexZ, headLength, widthLength ) );
+
+					//console.log(M.elements);
+
+					// Create the robot arm according to the DH table
+					var T = new THREE.Matrix4();
+					for (var i=0; i<n_joints; i++) {
+						length[i] = 0;
+						if (i<n_joints-1 && dh[i+1][1] != 0) {
+							length[i] = dh[i+1][1];
+						}
+
+						geometries[i] = new THREE.CylinderGeometry( 20, 20, length[i], 16 );
+						materials[i] = new THREE.MeshBasicMaterial( {color: 0x00ff00, wireframe: true } );
+
+						joints[i] = new THREE.Mesh( geometries[i], materials[i] );
+
+						robot_arm.add( joints[i] );
+
+						/*
+						 * Frame origins
+						 */
+						dirX[i]   = new THREE.Vector3( 1, 0, 0 );
+						dirY[i]   = new THREE.Vector3( 0, 1, 0 );
+						dirZ[i]   = new THREE.Vector3( 0, 0, 1 );
+						origin[i] = new THREE.Vector3( 0, 0, 0 );
+
+						arrowHelperX[i] = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
+						arrowHelperY[i] = new THREE.ArrowHelper( dirY[i], origin[i], arrlength, hexY, headLength, widthLength );
+						arrowHelperZ[i] = new THREE.ArrowHelper( dirZ[i], origin[i], arrlength, hexZ, headLength, widthLength );
+						scene.add( arrowHelperX[i] );
+						scene.add( arrowHelperY[i] );
+						scene.add( arrowHelperZ[i] );
+					}
+
+					scene.add( robot_arm );
+
+			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+			    camera.position.z = 1000;
+
+			    renderer = new THREE.WebGLRenderer();
+			    renderer.setSize( window.innerWidth, window.innerHeight );
+
+					// To move the scene according to mouse events
+					controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+			    document.body.appendChild( renderer.domElement );
+			}
+
+			function animate() {
+			    requestAnimationFrame( animate );
+
+			    renderer.render( scene, camera );
+
+					update();
+			}
+
+			function update() {
+					tick++;
+					controls.update();
+					computeJoints();
+					updateJoints();
+					//console.log(arrowHelperZ[0]);
+			}
+
+			function computeJoints() {
+					// UPDATE q vector with new angle values
+					q[2] = 0;
+					q[1] += 0.01;
+					q[0] -= 0.005;
+			}
+
+			function updateJoints() {
+				var M = new THREE.Matrix4();
+				for (var i=0; i<n_joints; i++) {
+					//if (i>0) {
+					//	M.multiply(M);
+					//}
+
+
+					//joints[i].applyMatrix(M);
+
+					var Inv = new THREE.Matrix4().getInverse(joints[i].matrix);
+
+					// Bring joint in the correct 0
+					var S = new THREE.Matrix4();
+					S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
+					S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
+
+					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(0, dh[i][1])).toArray())));//dh[i][2])).toArray())));
+					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], 0)).toArray())));//dh[i][2])).toArray())));
+
+					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
+
+					joints[i].applyMatrix(T);
+					//console.log(arrowHelperX[i]);
+					/*
+					* Frame origins
+					*/
+					//dirX[i].transformDirection(M[i]);
+					//dirY[i].transformDirection(M[i]);
+					//dirZ[i].transformDirection(M[i]);
+					//origin[i].setFromMatrixColumn(M[i], 3);
+					//var SX = new THREE.Matrix4();
+					//var SY = new THREE.Matrix4();
+					//var SZ = new THREE.Matrix4();
+					//S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
+					//S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
+
+					//var Mx = new THREE.Matrix4().copy(arrowHelperX[i].matrix);
+					//var My = new THREE.Matrix4().copy(arrowHelperY[i].matrix);
+					//var Mz = new THREE.Matrix4().copy(arrowHelperZ[i].matrix);
+
+					//arrowHelperX[i].applyMatrix(new THREE.Matrix4().extractRotation(Mx.transpose())); //new THREE.Matrix4().getInverse(arrowHelperX[i].matrix);
+					//arrowHelperY[i].applyMatrix(new THREE.Matrix4().extractRotation(My.transpose())); //new THREE.Matrix4().getInverse(arrowHelperY[i].matrix);
+					//arrowHelperZ[i].applyMatrix(new THREE.Matrix4().extractRotation(Mz.transpose())); //new THREE.Matrix4().getInverse(arrowHelperZ[i].matrix);
+					//var TX = (new THREE.Matrix4().multiply(M)).multiply(InvX);
+					//var TY = (new THREE.Matrix4().multiply(M)).multiply(InvY);
+					//var TZ = (new THREE.Matrix4().multiply(M)).multiply(InvZ);
+					//console.log(InvX.elements);
+					//console.log(Mx.elements);
+					//console.log(arrowHelperX[i].matrix.elements);
+
+					//console.log(arrowHelperY[i].matrix.elements);
+					//console.log(arrowHelperZ[i].matrix.elements);
+					//arrowHelperX[i].setDirection(new THREE.Vector3(1, 0, 0));
+					//arrowHelperX[i].applyMatrix(InvX);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
+					//arrowHelperX[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
+					//arrowHelperY[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
+					//arrowHelperZ[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
+					//console.log(i);
+					//console.log(M.elements);
+					//console.log(arrowHelperX[i].rotation);
+
+					//arrowHelperY[i].applyMatrix(TY);// = new THREE.ArrowHelper( dirY[i], origin[i], arrlength, hexY, headLength, widthLength );
+					//arrowHelperZ[i].applyMatrix(TZ);// = new THREE.ArrowHelper( dirZ[i], origin[i], arrlength, hexZ, headLength, widthLength );
+
+				}
+			}
+
+		</script>
+	</body>
+</html>
