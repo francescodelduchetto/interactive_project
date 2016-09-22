@@ -229,15 +229,16 @@
 
 			function computeJoints() {
 					// UPDATE q vector with new angle values
-					q[3] = 0;
-					q[2] += 0.01;
-					q[1] += 0.02;
-					q[0] = math.pi/2;
+					q[2] = 0;
+					q[1] = 200*tick;
+					q[0] = 200*tick;
 			}
 
 			function updateJoints() {
 				var M = new THREE.Matrix4();
 				for (var i=0; i<n_joints; i++) {
+
+					tick ++;
 					//if (i>0) {
 					//	M.multiply(M);
 					//}
@@ -256,7 +257,8 @@
 					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], dh[i][2])).toArray())));//dh[i][2])).toArray())));
 
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
-
+					var s = math.subset(T, math.index([0,1,2,3], 3));
+					console.log(s);
 
 					joints[i].applyMatrix(T);
 					//console.log(arrowHelperX[i]);
