@@ -303,8 +303,7 @@
 					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], dh[i][2])).toArray())));//dh[i][2])).toArray())));
 
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
-					var s = math.subset(T, math.index([0,1,2,3], 3));
-					console.log(s);
+				
 
 
 
