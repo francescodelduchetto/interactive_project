@@ -61,8 +61,8 @@
 			var headLength = 15;
 			var widthLength = 15;
 
-			var rd = [-1000, 500, 0];
-			var deltaT = 0.1;
+			var rd = [0, 1200, 0];
+			var deltaT = 0.0000001;
 			var q;
 			var qm;
 
@@ -75,12 +75,12 @@
 					 parser = math.parser();
 
 					parser.eval(
-						`rd = transpose([` + rd.toString() + '])'
+						`rd = [` + rd.toString() + `]`
 					);
 					parser.eval(
-						`q = [0;
-									0;
-									0;
+						`q = [0,
+									0,
+									0,
 									0]`
 					);
 					parser.eval(
@@ -113,8 +113,8 @@
 					 );
 					 parser.eval(
 						 `f(q1, q2, q3, q4) =
-						 [500*cos(q1 + q2) + 700*cos(q1 + q2 + q3)*cos(q4);
-							500*sin(q1 + q2) + 700*sin(q1 + q2 + q3)*cos(q4);
+						 [500*cos(q1 + q2) + 700*cos(q1 + q2 + q3)*cos(q4),
+							500*sin(q1 + q2) + 700*sin(q1 + q2 + q3)*cos(q4),
 																		              -700*sin(q4)]`
 					 );
 
@@ -123,7 +123,7 @@
 					Tx = parser.get('Tx');
 					J = parser.get('J');
 					qm = parser.get('q');
-					console.log(qm.get([0,0]));
+					console.log(qm.get([0]));
 
 					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
@@ -262,22 +262,26 @@
 
 			function computeJoints() {
 					// UPDATE q vector with new angle values
-					console.log(parser.get(`rd`));
-					console.log(`f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `)`);
-					console.log(parser.eval(`f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `)`));
+					//console.log(parser.get(`rd`));
+					//console.log(`f(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() + `)`);
 
-					parser.eval(
-						//	`q = q +  `+ deltaT.toString() +
-						//	` * transpose(J(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() +`))`+
-						//	`* (rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
-							`q = `+
-							`(rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
+
+					parser.eval(`q = q +  `+ deltaT.toString() +
+						`transpose(J(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() +`))`+
+						`*(rd - f(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() + `))`
+					);
+				//	parser.eval(
+							//`q = q +  `+ deltaT.toString() +
+							//` * transpose(J(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() +`))`+
+					//		`*(rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
+				//			`q = `+
+				//			`(rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
 
 					qm = parser.get('q');
-					q[3] = qm.get([3,0]);
-					q[2] = qm.get([2,0]);
-					q[1] = qm.get([1,0]);
-					q[0] = qm.get([0,0]);
+					q[3] = qm.get([3]);
+					q[2] = qm.get([2]);
+					q[1] = qm.get([1]);
+					q[0] = qm.get([0]);
 			}
 
 			function updateJoints() {
@@ -303,8 +307,8 @@
 					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], dh[i][2])).toArray())));//dh[i][2])).toArray())));
 
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
-					var s = math.subset(T, math.index([0,1,2,3], 3));
-					console.log(s);
+					//var s = math.subset(T, math.index([0,1,2,3], 3));
+					//console.log(s);
 
 
 
