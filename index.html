@@ -12,9 +12,23 @@
 		<script src="js/math.js/math.min.js"></script>
 		<script src="js/three.js/build/three.min.js"></script>
 		<script src="js/three.js/OrbitControls.js"></script>
+		<script src="js/Physijs/physi.js"></script>
 		<script>
+
+		// TODO:
+		//	(1) palla con fisica (gravità con three js)
+		//	(2) traiettoria robot che segue palla
+		//	- textures - luci - mano - gioco - ambientazione
+
+			'use strict';
+
+			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
+			Physijs.scripts.ammo = 'ammo.js';
+
 			var scene, camera, renderer, controls;
 			var geometry, material, mesh;
+
+			var ball;
 
 			var tick = 0;
 
@@ -48,15 +62,17 @@
 			animate();
 
 			function init() {
-					scene = new THREE.Scene();
+					scene = new Physijs.Scene;
 
 					var parser = math.parser();
 
 					parser.eval(
-						`dh(q1,q2,q3) =
+						`dh(q1,q2,q3, q4) =
 						[0,   0, 0, q1;
-						 0, 200, 0, q2;
-					   0, 1000, 0,  q3]`
+						 0, 500, 0, q2;
+						 -pi/2, 0, 0, q3;
+					   0, 500, 0,  q4;
+					 	 0, 200, 0, 0]`
 					);
 					parser.eval(
 						`Tz(th, d) =
@@ -72,15 +88,15 @@
 							0, sin(al),  cos(al), 0;
 							0,       0,        0, 1]`
 					 );
-					dhf = parser.get('dh');
+					var dhf = parser.get('dh');
 					Tz = parser.get('Tz');
 					Tx = parser.get('Tx');
 
-					dh = dhf(0, 0, 0).toArray();
+					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
 					console.log('N joints:' + n_joints);
 
-					robot_arm = new THREE.Group();
+					var robot_arm = new THREE.Group();
 
 					// Initialize q vector to initial configuration
 					for (var i=0; i<n_joints; i++)
@@ -104,7 +120,7 @@
 						}
 
 						geometries[i] = new THREE.CylinderGeometry( 20, 20, length[i], 16 );
-						materials[i] = new THREE.MeshBasicMaterial( {color: 0x00ff00, wireframe: true } );
+						materials[i] = new THREE.MeshNormalMaterial( {wireframe: true } );
 
 						joints[i] = new THREE.Mesh( geometries[i], materials[i] );
 
@@ -128,20 +144,76 @@
 
 					scene.add( robot_arm );
 
-			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
-			    camera.position.z = 1000;
+					// BALL
+					ball = new Physijs.SphereMesh(
+						new THREE.SphereGeometry( 50, 32, 32 ),
+						new Physijs.createMaterial(
+							new THREE.MeshNormalMaterial(),
+							1, // friction
+							1  // restitution
+						),
+						10 // mass
+					);
+					ball.translateZ(4000);
+					//ball.translateY(2000);
 
-			    renderer = new THREE.WebGLRenderer();
-			    renderer.setSize( window.innerWidth, window.innerHeight );
+					scene.add(ball);
+
+
+					// PLANE
+					var plane = new Physijs.PlaneMesh(
+						new THREE.PlaneGeometry( 400, 400, 32 ),
+						new Physijs.createMaterial(
+							new THREE.MeshNormalMaterial(),
+							1, // friction
+							1  // restitution
+						),
+						0
+					);
+					plane.translateY(-100);
+					plane.rotateX(-math.pi/2);
+
+					scene.add(plane);
+
+					// GRAVITY
+					scene.setGravity(new THREE.Vector3( 0, -1000, 0 ));
+
+					// CAMERA
+			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+			    //camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / 2, window.innerHeight / -2, 1, 10000 );
+			    camera.position.z = 5000;
+
+					// RENDERER
+			    renderer = new THREE.WebGLRenderer({ antialias: true });
+					renderer.setSize( window.innerWidth, window.innerHeight );
+					renderer.shadowMap.enabled = true;
+					renderer.shadowMapSoft = true
 
 					// To move the scene according to mouse events
 					controls = new THREE.OrbitControls( camera, renderer.domElement );
 
 			    document.body.appendChild( renderer.domElement );
+
+					// Trigger for user events
+					initEventHandling();
+			}
+
+			function initEventHandling() {
+					var handleKeyPress = function(evt) {
+							if (evt.keyCode == 32) { // 32 = spacebar
+								// Apply force to the ball
+								ball.applyCentralImpulse(new THREE.Vector3(0, 150, -200));
+							}
+					};
+
+					document.addEventListener('keypress', handleKeyPress);
 			}
 
 			function animate() {
 			    requestAnimationFrame( animate );
+
+					// Simulate physics
+					scene.simulate();
 
 			    renderer.render( scene, camera );
 
@@ -153,14 +225,14 @@
 					controls.update();
 					computeJoints();
 					updateJoints();
-					//console.log(arrowHelperZ[0]);
 			}
 
 			function computeJoints() {
 					// UPDATE q vector with new angle values
-					q[2] = 0;
-					q[1] += 0.01;
-					q[0] -= 0.005;
+					q[3] = 0;
+					q[2] += 0.01;
+					q[1] += 0.02;
+					q[0] = math.pi/2;
 			}
 
 			function updateJoints() {
@@ -180,10 +252,11 @@
 					S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
 					S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
 
-					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(0, dh[i][1])).toArray())));//dh[i][2])).toArray())));
-					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], 0)).toArray())));//dh[i][2])).toArray())));
+					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i][0], dh[i][1])).toArray())));//dh[i][2])).toArray())));
+					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], dh[i][2])).toArray())));//dh[i][2])).toArray())));
 
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
+
 
 					joints[i].applyMatrix(T);
 					//console.log(arrowHelperX[i]);
