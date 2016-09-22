@@ -11,8 +11,8 @@
 	<body>
 		<script src="js/math.js/math.min.js"></script>
 		<script src="js/three.js/build/three.min.js"></script>
-		<script src="js/three.js/OrbitControls.js"></script>
-		<script src="js/Physijs/physi.js"></script>
+		<script src="js/OrbitControl.js"></script>
+		<script src="js/physijs/physi.js"></script>
 		<script>
 
 		// TODO:
@@ -22,8 +22,8 @@
 
 			'use strict';
 
-			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
-			Physijs.scripts.ammo = 'ammo.js';
+			Physijs.scripts.worker = 'js/physijs/physijs_worker.js';
+			Physijs.scripts.ammo = '../ammo.js';
 
 			var scene, camera, renderer, controls;
 			var geometry, material, mesh;
@@ -259,6 +259,8 @@
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
 					var s = math.subset(T, math.index([0,1,2,3], 3));
 					console.log(s);
+
+
 
 					joints[i].applyMatrix(T);
 					//console.log(arrowHelperX[i]);
