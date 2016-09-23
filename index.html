@@ -61,10 +61,11 @@
 			var headLength = 15;
 			var widthLength = 15;
 
-			var rd = [0, 1200, 0];
-			var deltaT = 0.0000001;
+			var rd = [1000, 1000, 1000];
+			var deltaT = [0.0000001, 0.0000001, 0.0000001, 0.0000001] ;
 			var q;
-			var qm;
+			var maxDisp = 300;
+			var minDisp = 1;
 
 			init();
 			animate();
@@ -78,18 +79,14 @@
 						`rd = [` + rd.toString() + `]`
 					);
 					parser.eval(
-						`q = [0,
-									0,
-									0,
-									0]`
+						`q = [0, -pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
-						[0,   0, 0, q1;
-						 0, 500, 0, q2;
-						 -pi/2, 0, 0, q3;
-					   0, 500, 0,  q4;
-					 	 0, 200, 0, 0]`
+						[0,   500, 0, q1;
+						 -pi/2, 0, 0, q2;
+						 0, 500, 0, q3;
+					   0, 200, 0,  q4]`
 					);
 					parser.eval(
 						`Tz(th, d) =
@@ -107,23 +104,21 @@
 					 );
 					 parser.eval(
 						 `J(q1, q2, q3, q4) =
-						  [ - 500*sin(q1 + q2) - 700*sin(q1 + q2 + q3)*cos(q4), - 500*sin(q1 + q2) - 700*sin(q1 + q2 + q3)*cos(q4), -700*sin(q1 + q2 + q3)*cos(q4), -700*cos(q1 + q2 + q3)*sin(q4);
-							    500*cos(q1 + q2) + 700*cos(q1 + q2 + q3)*cos(q4),   500*cos(q1 + q2) + 700*cos(q1 + q2 + q3)*cos(q4),  700*cos(q1 + q2 + q3)*cos(q4), -700*sin(q1 + q2 + q3)*sin(q4);
-							                                                   0,                                                  0,                              0,                   -700*cos(q4)]`
-					 );
+						 [ 200*sin(q1 + q2)*sin(q3)*sin(q4) - 500*sin(q1 + q2)*cos(q3) - 200*sin(q1 + q2)*cos(q3)*cos(q4) - 500*sin(q1), 200*sin(q1 + q2)*sin(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q3)*cos(q4) - 500*sin(q1 + q2)*cos(q3), - 500*cos(q1 + q2)*sin(q3) - 200*cos(q1 + q2)*cos(q3)*sin(q4) - 200*cos(q1 + q2)*cos(q4)*sin(q3), - 200*cos(q1 + q2)*cos(q3)*sin(q4) - 200*cos(q1 + q2)*cos(q4)*sin(q3);
+						   500*cos(q1) + 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4), 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4), - 500*sin(q1 + q2)*sin(q3) - 200*sin(q1 + q2)*cos(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q4)*sin(q3), - 200*sin(q1 + q2)*cos(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q4)*sin(q3);
+						                                                                                                              0,                                                                                              0,                                                                 - 200*cos(q3 + q4) - 500*cos(q3),                                                     -200*cos(q3 + q4)]`
+		 			);
 					 parser.eval(
 						 `f(q1, q2, q3, q4) =
-						 [500*cos(q1 + q2) + 700*cos(q1 + q2 + q3)*cos(q4),
-							500*sin(q1 + q2) + 700*sin(q1 + q2 + q3)*cos(q4),
-																		              -700*sin(q4)]`
+						 [500*cos(q1) + 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4),
+ 						  500*sin(q1) + 500*sin(q1 + q2)*cos(q3) + 200*sin(q1 + q2)*cos(q3)*cos(q4) - 200*sin(q1 + q2)*sin(q3)*sin(q4),
+                                                                             							- 200*sin(q3 + q4) - 500*sin(q3)]`
 					 );
 
 					var dhf = parser.get('dh');
 					Tz = parser.get('Tz');
 					Tx = parser.get('Tx');
 					J = parser.get('J');
-					qm = parser.get('q');
-					console.log(qm.get([0]));
 
 					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
@@ -147,10 +142,7 @@
 					// Create the robot arm according to the DH table
 					var T = new THREE.Matrix4();
 					for (var i=0; i<n_joints; i++) {
-						length[i] = 0;
-						if (i<n_joints-1 && dh[i+1][1] != 0) {
-							length[i] = dh[i+1][1];
-						}
+						length[i] = dh[i][1];
 
 						geometries[i] = new THREE.CylinderGeometry( 20, 20, length[i], 16 );
 						materials[i] = new THREE.MeshNormalMaterial( {wireframe: true } );
@@ -188,7 +180,6 @@
 						10 // mass
 					);
 					ball.translateZ(4000);
-					//ball.translateY(2000);
 
 					scene.add(ball);
 
@@ -262,26 +253,34 @@
 
 			function computeJoints() {
 					// UPDATE q vector with new angle values
-					//console.log(parser.get(`rd`));
-					//console.log(`f(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() + `)`);
+					// Cartesian error
+					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
+					// Take gradient error
+					parser.eval(`qerr = transpose(J(q[1], q[2], q[3], q[4])) * cerr`);
 
+					var cerr = parser.get('cerr');
+					var qerr = parser.get('qerr');
 
-					parser.eval(`q = q +  `+ deltaT.toString() +
-						`transpose(J(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() +`))`+
-						`*(rd - f(` + qm.get([0]).toString() + `,` + qm.get([1]).toString() + `,` + qm.get([2]).toString() + `,` + qm.get([3]).toString() + `))`
-					);
-				//	parser.eval(
-							//`q = q +  `+ deltaT.toString() +
-							//` * transpose(J(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() +`))`+
-					//		`*(rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
-				//			`q = `+
-				//			`(rd - f(` + qm.get([0,0]).toString() + `,` + qm.get([1,0]).toString() + `,` + qm.get([2,0]).toString() + `,` + qm.get([3,0]).toString() + `))`);
+					// Limit joint displacements
+					//for (var i=0; i<n_joints; i++) {
+					//	if (math.abs(qerr.get([i])) > maxDisp) {
+					//		deltaT[i] *= 1.01;
+					//	} else if (math.abs(qerr.get([i])) < minDisp){
+					//		deltaT[i] /= 1.01;
+					//	}
+					//}
 
-					qm = parser.get('q');
-					q[3] = qm.get([3]);
-					q[2] = qm.get([2]);
-					q[1] = qm.get([1]);
-					q[0] = qm.get([0]);
+					parser.eval(`q = q + [`+ deltaT.toString() +`] .* transpose(qerr)`);
+					q = parser.get('q');
+					console.log('q    ' + parser.eval(`q`).toString());
+					//console.log('rd   ' + parser.get(`rd`).toString());
+					console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
+					//console.log('cerr ' + cerr.toString());
+					//console.log('qerr ' + qerr.toString());
+					//console.log('delT ' + deltaT.toString());
+					//console.log('d*qe ' + parser.eval(`[`+ deltaT.toString() +`] .* qerr`));
+					//console.log('q    ' + q.toString());
+					//console.log(parser.eval(`J(q[1], q[2], q[3], q[4])`));
 			}
 
 			function updateJoints() {
@@ -289,12 +288,6 @@
 				for (var i=0; i<n_joints; i++) {
 
 					tick ++;
-					//if (i>0) {
-					//	M.multiply(M);
-					//}
-
-
-					//joints[i].applyMatrix(M);
 
 					var Inv = new THREE.Matrix4().getInverse(joints[i].matrix);
 
@@ -302,10 +295,10 @@
 					var S = new THREE.Matrix4();
 					S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
 					S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
-
-					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i][0], dh[i][1])).toArray())));//dh[i][2])).toArray())));
-					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q[i], dh[i][2])).toArray())));//dh[i][2])).toArray())));
-
+					if (i>0)
+						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i-1][0], dh[i-1][1])).toArray())));//dh[i][2])).toArray())));
+					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
+					console.log(q.get([i]));
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
 					//var s = math.subset(T, math.index([0,1,2,3], 3));
 					//console.log(s);
