@@ -1,3 +1,9 @@
 [submodule "js/three.js"]
 	path = js/three.js
 	url = git@github.com:mrdoob/three.js.git
+[submodule "Physijs"]
+	path = Physijs
+	url = https://github.com/chandlerprall/Physijs.git
+[submodule "js/Physijs"]
+	path = js/Physijs
+	url = https://github.com/chandlerprall/Physijs.git

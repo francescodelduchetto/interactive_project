@@ -12,7 +12,7 @@
 		<script src="js/math.js/math.min.js"></script>
 		<script src="js/three.js/build/three.min.js"></script>
 		<script src="js/OrbitControl.js"></script>
-		<script src="js/physijs/physi.js"></script>
+		<script src="js/Physijs/physi.js"></script>
 		<script>
 
 		// TODO:
@@ -22,7 +22,7 @@
 
 			'use strict';
 
-			Physijs.scripts.worker = 'js/physijs/physijs_worker.js';
+			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
 			Physijs.scripts.ammo = '../ammo.js';
 
 			var scene, camera, renderer, controls;
@@ -61,7 +61,7 @@
 			var headLength = 15;
 			var widthLength = 15;
 
-			var rd = [1000, 1000, 1000];
+			var rd = [-1000, -1000,0];
 			var deltaT = [0.0000001, 0.0000001, 0.0000001, 0.0000001] ;
 			var q;
 			var maxDisp = 300;
@@ -79,7 +79,7 @@
 						`rd = [` + rd.toString() + `]`
 					);
 					parser.eval(
-						`q = [0, -pi/2, -0.7853981633974488, -0.7853981633974488]`
+						`q = [0.01, 0, 0,0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
@@ -275,12 +275,12 @@
 					console.log('q    ' + parser.eval(`q`).toString());
 					//console.log('rd   ' + parser.get(`rd`).toString());
 					console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
-					//console.log('cerr ' + cerr.toString());
-					//console.log('qerr ' + qerr.toString());
-					//console.log('delT ' + deltaT.toString());
-					//console.log('d*qe ' + parser.eval(`[`+ deltaT.toString() +`] .* qerr`));
-					//console.log('q    ' + q.toString());
-					//console.log(parser.eval(`J(q[1], q[2], q[3], q[4])`));
+					console.log('cerr ' + cerr.toString());
+					console.log('qerr ' + qerr.toString());
+					console.log('delT ' + deltaT.toString());
+					console.log('d*qe ' + parser.eval(`[`+ deltaT.toString() +`] .* qerr`));
+					console.log('q    ' + q.toString());
+					console.log(parser.eval(`J(q[1], q[2], q[3], q[4])`));
 			}
 
 			function updateJoints() {
@@ -300,7 +300,7 @@
 					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
 					console.log(q.get([i]));
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
-				
+
 
 
 
