@@ -75,9 +75,7 @@
 
 					 parser = math.parser();
 
-					parser.eval(
-						`rd = [` + rd.toString() + `]`
-					);
+
 					parser.eval(
 						`q = [0.01, 0, 0,0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
@@ -226,7 +224,7 @@
 					var handleKeyPress = function(evt) {
 							if (evt.keyCode == 32) { // 32 = spacebar
 								// Apply force to the ball
-								ball.applyCentralImpulse(new THREE.Vector3(0, 150, -200));
+								ball.applyCentralImpulse(new THREE.Vector3(0, 15000, -20000));
 							}
 					};
 
@@ -252,6 +250,10 @@
 			}
 
 			function computeJoints() {
+					// target position as ball position
+					parser.eval(
+						`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+					);
 					// UPDATE q vector with new angle values
 					// Cartesian error
 					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
