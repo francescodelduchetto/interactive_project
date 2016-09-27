@@ -9,7 +9,7 @@
 		</style>
 	</head>
 	<body>
-		<script src="js/math.js/math.min.js"></script>
+		 <script src="js/math.js/math.min.js"></script>
 		<script src="js/three.js/build/three.min.js"></script>
 		<script src="js/OrbitControl.js"></script>
 		<script src="js/Physijs/physi.js"></script>
@@ -25,10 +25,10 @@
 
 			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
 			Physijs.scripts.ammo = '../ammo.js';
-
+			var loader;
 			var scene, camera, renderer, controls;
 			var geometry, material, mesh;
-
+			var light;
 			var parser;
 			var stats;
 
@@ -69,7 +69,7 @@
 			var maxDisp = 300;
 			var minDisp = 1;
 
-			var ballInitPosition = [0, 0, 10000];
+			var ballInitPosition = [0, 100, 10000];
 			var shootArrow;
 			var shootArrowXAngle = 0;
 			var shootArrowYAngle = 0;
@@ -123,6 +123,7 @@
                                                                              							- 200*sin(q3 + q4) - 500*sin(q3)]`
 					 );
 
+
 					var dhf = parser.get('dh');
 					Tz = parser.get('Tz');
 					Tx = parser.get('Tx');
@@ -133,11 +134,13 @@
 					console.log('N joints:' + n_joints);
 
 					var robot_arm = new THREE.Group();
-
+					//TextureLoader
+						loader = new THREE.TextureLoader();
 					// Initialize q vector to initial configuration
 					for (var i=0; i<n_joints; i++)
 						q[i] = 0;
 
+						//LI
 					/*
 					 * Frame zero
 					 */
@@ -153,9 +156,9 @@
 						length[i] = dh[i][1];
 
 						geometries[i] = new THREE.CylinderGeometry( 20, 20, length[i], 16 );
-						materials[i] = new THREE.MeshNormalMaterial( {wireframe: true } );
+						materials[i] = new THREE.MeshNormalMaterial( );
 
-						joints[i] = new THREE.Mesh( geometries[i], materials[i] );
+						joints[i] = new Physijs.CylinderMesh( geometries[i], new Physijs.createMaterial(materials[i],1,1),0);
 
 						robot_arm.add( joints[i] );
 
@@ -179,7 +182,7 @@
 
 					// BALL
 					ball = new Physijs.SphereMesh(
-						new THREE.SphereGeometry( 50, 32, 32 ),
+						new THREE.SphereGeometry( 150, 32, 32 ),
 						new Physijs.createMaterial(
 							new THREE.MeshNormalMaterial(),
 							1, // friction
@@ -187,29 +190,53 @@
 						),
 						10 // mass
 					);
+
 					ball.translateZ(ballInitPosition[2]);
+					ball.translateY(ballInitPosition[1]);
 
 					scene.add(ball);
 
-
-					// PLANE
-					var plane = new Physijs.PlaneMesh(
-						new THREE.PlaneGeometry( 400, 400, 32 ),
-						new Physijs.createMaterial(
-							new THREE.MeshNormalMaterial(),
-							1, // friction
-							0.3  // restitution
-						),
-						0
+					//GROUND
+					loader= new THREE.TextureLoader();
+				var	ground_material = Physijs.createMaterial(
+						new THREE.MeshLambertMaterial({ map: loader.load( 'images/grass.png' ) }),
+						.8, // high friction
+						.3 // low restitution
 					);
-					plane.translateY(-1);
-					plane.rotateX(-math.pi/2);
+					ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
+					ground_material.map.repeat.set( 3, 3 );
 
-					scene.add(plane);
+					var ground = new Physijs.BoxMesh(	new THREE.PlaneGeometry(10000, 100000, 100),	ground_material,	0 );
+					ground.rotateX(-math.pi/2);
+					ground.receiveShadow = true;
+					//ground.position.y=-80;
+					scene.add(ground);
+					//luce NECESSARIA per la texture
+					light = new THREE.DirectionalLight( 0xFFFFFF );
+					light.position.set( 20, 40, -15 );
+					light.target.position.copy( scene.position );
+					light.castShadow = true;
+					light.shadowCameraLeft = -60;
+					light.shadowCameraTop = -60;
+					light.shadowCameraRight = 60;
+					light.shadowCameraBottom = 60;
+					light.shadowCameraNear = 20;
+					light.shadowCameraFar = 200;
+					light.shadowBias = -.0001
+					light.shadowMapWidth = light.shadowMapHeight = 2048;
+					light.shadowDarkness = .7;
+					scene.add( light );
+
 
 					// GRAVITY
 					scene.setGravity(new THREE.Vector3( 0, -1000, 0 ));
-
+						//	PER COLLIZIONI?
+						scene.addEventListener(
+							'update',
+							function() {
+								scene.simulate( undefined, 1 );
+													}
+						);
 					// SHOOT ARROW
 					var arrowShape = new THREE.Shape();
 					arrowShape.moveTo(  -50, 0 );
@@ -300,6 +327,7 @@
 
 			function update() {
 					tick++;
+
 					//controls.update();
 					computeJoints();
 					updateJoints();
