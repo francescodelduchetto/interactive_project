@@ -74,7 +74,7 @@
 			var shootArrowXAngle = 0;
 			var shootArrowYAngle = 0;
 			var ballTotalForce = 20000;
-			var ballForce = new THREE.Vector3(0,0,0);
+			var ballForce = new THREE.Vector3(0,0,-ballTotalForce);
 
 
 			init();
@@ -264,28 +264,19 @@
 							var shootMaxXAngle = math.pi/2, shootMinXAngle = 0;
 							var shootMaxYAngle = math.pi/6, shootMinYAngle = -math.pi/3;
 							if (evt.keyCode == 32) { // 32 = spacebar
-								// Apply force to the ball
-								ball.applyCentralImpulse(ballForce);
-							}
-							if (evt.keyCode == 37) { // 37 = left arrow
-								var rotY = (shootArrowYAngle + shootAngleStep < shootMaxYAngle) ? shootAngleStep : 0;
-								shootArrowYAngle += rotY;
-								shootArrow.rotateZ(rotY);
-							}
-							if (evt.keyCode == 38) { // 38 = up arrow
-								var rotX = (shootArrowXAngle + shootAngleStep < shootMaxXAngle) ? shootAngleStep : 0;
-								shootArrowXAngle += rotX;
-								shootArrow.rotateX(rotX);
-							}
-							if (evt.keyCode == 39) { // 39 = right arrow
-								var rotY = (shootArrowYAngle - shootAngleStep > shootMinYAngle) ? - shootAngleStep : 0;
-								shootArrowYAngle += rotY;
-								shootArrow.rotateZ(rotY);
-							}
-							if (evt.keyCode == 40) { // 40 = down arrow
-								var rotX = (shootArrowXAngle - shootAngleStep > shootMinXAngle) ? - shootAngleStep : 0;
-								shootArrowXAngle += rotX;
-								shootArrow.rotateX(rotX);
+								ball.applyCentralImpulse(ballForce); // Apply force to the ball
+							} else if (evt.keyCode == 37) { // 37 = left arrow
+								shootArrowYAngle += (shootArrowYAngle + shootAngleStep < shootMaxYAngle) ? shootAngleStep : 0;
+								recomputeShootForces();
+							} else if (evt.keyCode == 38) { // 38 = up arrow
+								shootArrowXAngle += (shootArrowXAngle + shootAngleStep < shootMaxXAngle) ? shootAngleStep : 0;
+								recomputeShootForces();
+							} else if (evt.keyCode == 39) { // 39 = right arrow
+								shootArrowYAngle += (shootArrowYAngle - shootAngleStep > shootMinYAngle) ? - shootAngleStep : 0;
+								recomputeShootForces();
+							} else if (evt.keyCode == 40) { // 40 = down arrow
+								shootArrowXAngle += (shootArrowXAngle - shootAngleStep > shootMinXAngle) ? - shootAngleStep : 0;
+								recomputeShootForces();
 							}
 					};
 
@@ -312,13 +303,18 @@
 					//controls.update();
 					computeJoints();
 					updateJoints();
-					updateShootControls();
 			}
 
-			function updateShootControls() {
+			function recomputeShootForces() {
+					// rotate the shootArrow
+					shootArrow.rotation.set(-math.pi/2,0,0,'XYZ');
+					shootArrow.rotateZ(shootArrowYAngle);
+					shootArrow.rotateX(shootArrowXAngle);
+
+					// compute the forces
 					ballForce.setX(math.cos(shootArrowXAngle) * math.sin(-shootArrowYAngle) * ballTotalForce);
 					ballForce.setY(math.sin(shootArrowXAngle) * ballTotalForce);
-					ballForce.setZ(- math.cos(shootArrowXAngle) * math.cos(shootArrowYAngle) * ballTotalForce);
+					ballForce.setZ(-1 * math.cos(shootArrowXAngle) * math.cos(shootArrowYAngle) * ballTotalForce);
 			}
 
 			function computeJoints() {
