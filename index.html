@@ -70,11 +70,12 @@
 			var minDisp = 1;
 
 			var ballInitPosition = [0, 0, 10000];
-			var shootArrow;
+			var shootArrow, forceBar;
 			var shootArrowXAngle = 0;
 			var shootArrowYAngle = 0;
-			var ballTotalForce = 20000;
+			var ballTotalForce = 50000;
 			var ballForce = new THREE.Vector3(0,0,-ballTotalForce);
+			var percForce = 1.0;
 
 
 			init();
@@ -87,7 +88,7 @@
 
 
 					parser.eval(
-						`q = [0.01, 0, 0,0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
+						`q = [0.01, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
@@ -126,7 +127,7 @@
 					var dhf = parser.get('dh');
 					Tz = parser.get('Tz');
 					Tx = parser.get('Tx');
-					J = parser.get('J');
+					J  = parser.get('J');
 
 					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
@@ -229,6 +230,20 @@
 
           scene.add(shootArrow);
 
+					// FORCE BAR
+					var barShape = new THREE.Shape();
+					barShape.moveTo(0, 0);
+					barShape.lineTo(0, 200);
+					barShape.lineTo(20, 200);
+					barShape.lineTo(20, 0);
+					//barShape.lineTo(0, 0);
+					var barGeometry = new THREE.ShapeGeometry(barShape);
+					forceBar = new THREE.Mesh(barGeometry, new THREE.MeshNormalMaterial());
+					forceBar.position.x = 200;
+					forceBar.position.z = ballInitPosition[2];
+
+					scene.add(forceBar);
+
 					// CAMERA
 			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
 			    //camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / 2, window.innerHeight / -2, 1, 20000 );
@@ -260,7 +275,7 @@
 
 			function initEventHandling() {
 					var handleKeyPress = function(evt) {
-							var shootAngleStep = math.pi/48;
+							var shootAngleStep = math.pi/48, shootForceStep = 0.1;
 							var shootMaxXAngle = math.pi/2, shootMinXAngle = 0;
 							var shootMaxYAngle = math.pi/6, shootMinYAngle = -math.pi/3;
 							if (evt.keyCode == 32) { // 32 = spacebar
@@ -276,6 +291,12 @@
 								recomputeShootForces();
 							} else if (evt.keyCode == 40) { // 40 = down arrow
 								shootArrowXAngle += (shootArrowXAngle - shootAngleStep > shootMinXAngle) ? - shootAngleStep : 0;
+								recomputeShootForces();
+							} else if (evt.keyCode == 107) { // 107 = +
+								percForce += shootForceStep;
+								recomputeShootForces();
+							} else if (evt.keyCode == 109) { // 109 = -
+								percForce -= shootForceStep;
 								recomputeShootForces();
 							}
 					};
@@ -311,10 +332,13 @@
 					shootArrow.rotateZ(shootArrowYAngle);
 					shootArrow.rotateX(shootArrowXAngle);
 
+					// scale force bar
+					forceBar.scale.setY(percForce);
+
 					// compute the forces
-					ballForce.setX(math.cos(shootArrowXAngle) * math.sin(-shootArrowYAngle) * ballTotalForce);
-					ballForce.setY(math.sin(shootArrowXAngle) * ballTotalForce);
-					ballForce.setZ(-1 * math.cos(shootArrowXAngle) * math.cos(shootArrowYAngle) * ballTotalForce);
+					ballForce.setX(math.cos(shootArrowXAngle) * math.sin(-shootArrowYAngle) * ballTotalForce * percForce);
+					ballForce.setY(math.sin(shootArrowXAngle) * ballTotalForce * percForce);
+					ballForce.setZ(-1 * math.cos(shootArrowXAngle) * math.cos(shootArrowYAngle) * ballTotalForce * percForce);
 			}
 
 			function computeJoints() {
