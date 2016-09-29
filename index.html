@@ -27,45 +27,38 @@
 			Physijs.scripts.ammo = '../ammo.js';
 
 			var scene, camera, renderer, controls;
-			var geometry, material, mesh;
+			var init, animate;
 
 			var parser;
 			var stats;
 
 			var ball;
 
-			var tick = 0;
-
 			//var M = {}; //new THREE.Matrix4();
-			var q = {};
-			var dh;
-			var n_joints;
-			var Tx, Tz;
-			var J;
+			var q = {}, dh, n_joints, Txz, J;
 
+			var ground, ground_material, ground_geometry, ballGeometry, ballMaterial;
 			var joints = {};
 			var geometries = {};
 			var materials = {};
-			var frames = {};
 			var length = {};
 
-			var arrowHelperX = {};
-			var arrowHelperY = {};
-			var arrowHelperZ = {};
-			var dirX = {};
-			var dirY = {};
-			var dirZ = {};
-			var origin =  {};
-			var arrlength = 100;
-			var hexX = 0xff0000;
-			var hexY = 0x00ff00;
-			var hexZ = 0x0000ff;
-			var headLength = 15;
-			var widthLength = 15;
+			//var arrowHelperX = {};
+			//var arrowHelperY = {};
+			//var arrowHelperZ = {};
+			//var dirX = {};
+			//var dirY = {};
+			//var dirZ = {};
+			//var origin =  {};
+			//var arrlength = 100;
+			//var hexX = 0xff0000;
+			//var hexY = 0x00ff00;
+			//var hexZ = 0x0000ff;
+			//var headLength = 15;
+			//var widthLength = 15;
 
 			var rd = [-1000, -1000,0];
 			var deltaT = [0.0000001, 0.0000001, 0.0000001, 0.0000001] ;
-			var q;
 			var maxDisp = 300;
 			var minDisp = 1;
 
@@ -78,17 +71,46 @@
 			var percForce = 1.0;
 
 
-			init();
-			animate();
 
-			function init() {
+			//animate();
+
+			init = function () {
+					// RENDERER
+					renderer = new THREE.WebGLRenderer({ antialias: true });
+					renderer.setSize( window.innerWidth, window.innerHeight);
+					renderer.shadowMap.enabled = true;
+					renderer.shadowMapSoft = true
+
+					// SCENE
 					scene = new Physijs.Scene;
+					// GRAVITY
+					scene.setGravity(new THREE.Vector3( 0, -1000, 0 ));
+					scene.addEventListener(
+						'update',
+						function() {
+							// Simulate physics
+							scene.simulate();
 
+							stats.update();
+						}
+					)
+
+					// CAMERA
+			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
+			    //camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / 2, window.innerHeight / -2, 1, 20000 );
+			    //camera.position.z = ballInitPosition[2];
+			    camera.position.z = ballInitPosition[2] + 1000;
+			    //camera.position.x = 1000;
+			    camera.position.y = 700;
+					//camera.lookAt(new THREE.Vector3(ballInitPosition[0], ballInitPosition[1], ballInitPosition[2]));
+					camera.lookAt(new THREE.Vector3(0,0,0));
+
+					// MATHJS PARSER
 				 	parser = math.parser();
 
 
 					parser.eval(
-						`q = [0.01, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
+						`q = [0, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
@@ -97,19 +119,12 @@
 						 0, 500, 0, q3;
 					   0, 200, 0,  q4]`
 					);
-					parser.eval(
-						`Tz(th, d) =
-						[cos(th), -sin(th), 0, 0;
-						 sin(th),  cos(th), 0, 0;
-					         0,        0, 1, d;
-						       0,        0, 0, 1]`
-					 );
 					 parser.eval(
-						 `Tx(al, a) =
-						 [1,       0,        0, a;
-						  0, cos(al), -sin(al), 0;
-							0, sin(al),  cos(al), 0;
-							0,       0,        0, 1]`
+						 `Txz(al, a, d, th) =
+						 [         cos(th),        -sin(th),        0,          a;
+						   cos(al)*sin(th), cos(al)*cos(th), -sin(al), -d*sin(al);
+						   sin(al)*sin(th), sin(al)*cos(th),  cos(al),  d*cos(al);
+						                 0,               0,        0,          1]`
 					 );
 					 parser.eval(
 						 `J(q1, q2, q3, q4) =
@@ -125,68 +140,51 @@
 					 );
 
 					var dhf = parser.get('dh');
-					Tz = parser.get('Tz');
-					Tx = parser.get('Tx');
+					Txz = parser.get('Txz');
 					J  = parser.get('J');
 
 					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
 					console.log('N joints:' + n_joints);
 
-					var robot_arm = new THREE.Group();
 					//TextureLoader
 						loader = new THREE.TextureLoader();
 					// Initialize q vector to initial configuration
 					for (var i=0; i<n_joints; i++)
 						q[i] = 0;
 
-					/*
-					 * Frame zero
-					 */
-					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 1, 0, 0 ), new THREE.Vector3( 0, 0, 0 ), 200, hexX, headLength, widthLength ) );
-					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 0, 1, 0 ), new THREE.Vector3( 0, 0, 0 ), 200, hexY, headLength, widthLength ) );
-					scene.add( new THREE.ArrowHelper( new THREE.Vector3( 0, 0, 1 ), new THREE.Vector3( 0, 0, 0 ), 200, hexZ, headLength, widthLength ) );
-
-					//console.log(M.elements);
+					//var robot_arm = new THREE.Group();
 
 					// Create the robot arm according to the DH table
 					var T = new THREE.Matrix4();
 					for (var i=0; i<n_joints; i++) {
 						length[i] = dh[i][1];
 
-						geometries[i] = new THREE.CylinderGeometry( 20, 20, length[i], 16 );
+						geometries[i] = new THREE.CylinderGeometry( 10, 10, length[i], 16 );
 						materials[i] = new THREE.MeshNormalMaterial( );
 
-						joints[i] = new Physijs.CylinderMesh( geometries[i], new Physijs.createMaterial(materials[i],1,1),0);
+						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
+						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
+						scene.add( joints[i] );
 
-						robot_arm.add( joints[i] );
+						joints[i].addEventListener('collision', function(object) {
+							console.log('joint' + i + ' collision');
+						});
 
-						/*
-						 * Frame origins
-						 */
-						dirX[i]   = new THREE.Vector3( 1, 0, 0 );
-						dirY[i]   = new THREE.Vector3( 0, 1, 0 );
-						dirZ[i]   = new THREE.Vector3( 0, 0, 1 );
-						origin[i] = new THREE.Vector3( 0, 0, 0 );
-
-						arrowHelperX[i] = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
-						arrowHelperY[i] = new THREE.ArrowHelper( dirY[i], origin[i], arrlength, hexY, headLength, widthLength );
-						arrowHelperZ[i] = new THREE.ArrowHelper( dirZ[i], origin[i], arrlength, hexZ, headLength, widthLength );
-						scene.add( arrowHelperX[i] );
-						scene.add( arrowHelperY[i] );
-						scene.add( arrowHelperZ[i] );
 					}
 
-					scene.add( robot_arm );
+					//scene.add( robot_arm );
 
 					// BALL
+					ballGeometry = new THREE.SphereGeometry( 50, 32, 32 );
+					ballMaterial = new Physijs.createMaterial(
+													new THREE.MeshNormalMaterial(),
+													1, // friction
+													1  // restitution
+												);
 					ball = new Physijs.SphereMesh(
-						new THREE.SphereGeometry( 150, 32, 32 ),
-						new Physijs.createMaterial(
-							new THREE.MeshNormalMaterial(),
-							1, // friction
-							1  // restitution
-						),
+						ballGeometry,
+						ballMaterial,
 						10 // mass
 					);
 
@@ -196,46 +194,38 @@
 					scene.add(ball);
 
 					//GROUND
-					loader= new THREE.TextureLoader();
-				var	ground_material = Physijs.createMaterial(
-						new THREE.MeshLambertMaterial({ map: loader.load( 'images/grass.png' ) }),
+					var loader= new THREE.TextureLoader();
+				  ground_material = Physijs.createMaterial(
+						new THREE.MeshLambertMaterial({ map: loader.load( 'images/grass.jpg' ) }),
 						.8, // high friction
 						.3 // low restitution
 					);
 					ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
 					ground_material.map.repeat.set( 3, 3 );
 
-					var ground = new Physijs.BoxMesh(	new THREE.PlaneGeometry(10000, 100000, 100),	ground_material,	0 );
+					ground_geometry = new THREE.PlaneGeometry(10000, 100000, 100);
+					ground = new Physijs.PlaneMesh(	ground_geometry,	ground_material,	0 );
 					ground.rotateX(-math.pi/2);
 					ground.receiveShadow = true;
-					//ground.position.y=-80;
+					//ground.position.y=-1000;
 					scene.add(ground);
+
 					//luce NECESSARIA per la texture
-					light = new THREE.DirectionalLight( 0xFFFFFF );
+					var light = new THREE.DirectionalLight( 0xFFFFFF );
 					light.position.set( 20, 40, -15 );
 					light.target.position.copy( scene.position );
 					light.castShadow = true;
-					light.shadowCameraLeft = -60;
-					light.shadowCameraTop = -60;
-					light.shadowCameraRight = 60;
-					light.shadowCameraBottom = 60;
-					light.shadowCameraNear = 20;
-					light.shadowCameraFar = 200;
-					light.shadowBias = -.0001
-					light.shadowMapWidth = light.shadowMapHeight = 2048;
-					light.shadowDarkness = .7;
+					light.shadow.camera.left = -60;
+					light.shadow.camera.top = -60;
+					light.shadow.camera.right = 60;
+					light.shadow.camera.bottom = 60;
+					light.shadow.camera.near = 20;
+					light.shadow.camera.far = 200;
+					light.shadow.bias = -.0001;
+					light.shadow.mapSize.width = light.shadow.mapSize.height = 2048;
+					//light.shadowDarkness = .7;
 					scene.add( light );
 
-
-					// GRAVITY
-					scene.setGravity(new THREE.Vector3( 0, -1000, 0 ));
-						//	PER COLLIZIONI?
-						scene.addEventListener(
-							'update',
-							function() {
-								scene.simulate( undefined, 1 );
-													}
-						);
 					// SHOOT ARROW
 					var arrowShape = new THREE.Shape();
 					arrowShape.moveTo(  -50, 0 );
@@ -245,7 +235,7 @@
 					arrowShape.lineTo(  200, 150 );
 					arrowShape.lineTo(  100, 150 );
 					arrowShape.lineTo(  50, 0 );
-					arrowShape.lineTo(  -100, 0 );
+					arrowShape.lineTo(  -50, 0 );
 					var arrowGeometry = new THREE.ShapeGeometry(arrowShape);
 					shootArrow = new THREE.Mesh(arrowGeometry, new THREE.MeshNormalMaterial( { } ));
 
@@ -261,7 +251,7 @@
 					barShape.lineTo(0, 200);
 					barShape.lineTo(20, 200);
 					barShape.lineTo(20, 0);
-					//barShape.lineTo(0, 0);
+					barShape.lineTo(0, 0);
 					var barGeometry = new THREE.ShapeGeometry(barShape);
 					forceBar = new THREE.Mesh(barGeometry, new THREE.MeshNormalMaterial());
 					forceBar.position.x = 200;
@@ -269,24 +259,8 @@
 
 					scene.add(forceBar);
 
-					// CAMERA
-			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
-			    //camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / 2, window.innerHeight / -2, 1, 20000 );
-			    //camera.position.z = ballInitPosition[2];
-			    camera.position.z = ballInitPosition[2] + 1000;
-			    //camera.position.x = 1000;
-			    camera.position.y = 700;
-					//camera.lookAt(new THREE.Vector3(ballInitPosition[0], ballInitPosition[1], ballInitPosition[2]));
-					camera.lookAt(new THREE.Vector3(0,0,0));
-
-					// RENDERER
-			    renderer = new THREE.WebGLRenderer({ antialias: true });
-					renderer.setSize( window.innerWidth, window.innerHeight);
-					renderer.shadowMap.enabled = true;
-					renderer.shadowMapSoft = true
-
 					// To move the scene according to mouse events
-				//	controls = new THREE.OrbitControls( camera, renderer.domElement );
+					controls = new THREE.OrbitControls( camera, renderer.domElement );
 					//controls.enabled = false;
 
 			    document.body.appendChild( renderer.domElement );
@@ -296,6 +270,10 @@
 
 					// Trigger for user events
 					initEventHandling();
+
+					requestAnimationFrame( animate );
+
+					scene.simulate();
 			}
 
 			function initEventHandling() {
@@ -305,23 +283,23 @@
 							var shootMaxYAngle = math.pi/6, shootMinYAngle = -math.pi/3;
 							if (evt.keyCode == 32) { // 32 = spacebar
 								ball.applyCentralImpulse(ballForce); // Apply force to the ball
-							} else if (evt.keyCode == 37) { // 37 = left arrow
+							} else if (evt.keyCode == 65) { // 37 = left arrow
 								shootArrowYAngle += (shootArrowYAngle + shootAngleStep < shootMaxYAngle) ? shootAngleStep : 0;
 								recomputeShootForces();
-							} else if (evt.keyCode == 38) { // 38 = up arrow
+							} else if (evt.keyCode == 87) { // 38 = up arrow
 								shootArrowXAngle += (shootArrowXAngle + shootAngleStep < shootMaxXAngle) ? shootAngleStep : 0;
 								recomputeShootForces();
-							} else if (evt.keyCode == 39) { // 39 = right arrow
+							} else if (evt.keyCode == 68) { // 39 = right arrow
 								shootArrowYAngle += (shootArrowYAngle - shootAngleStep > shootMinYAngle) ? - shootAngleStep : 0;
 								recomputeShootForces();
-							} else if (evt.keyCode == 40) { // 40 = down arrow
+							} else if (evt.keyCode == 83) { // 40 = down arrow
 								shootArrowXAngle += (shootArrowXAngle - shootAngleStep > shootMinXAngle) ? - shootAngleStep : 0;
 								recomputeShootForces();
 							} else if (evt.keyCode == 107) { // 107 = +
-								percForce += shootForceStep;
+								percForce += (percForce < 1) ? shootForceStep : 0;
 								recomputeShootForces();
 							} else if (evt.keyCode == 109) { // 109 = -
-								percForce -= shootForceStep;
+								percForce -= (percForce > 0.01) ? shootForceStep : 0;
 								recomputeShootForces();
 							}
 					};
@@ -329,27 +307,25 @@
 					//document.addEventListener('keypress', handleKeyPress);
 					document.addEventListener('keydown', handleKeyPress);
 					//document.addEventListener('keydown', function(evt) {console.log(evt.keyCode)});
-			}
 
-			function animate() {
+					var handleCollision = function(obj) {
+						console.log('ball collision');
+					};
+
+					ball.addEventListener('collision', handleCollision);
+
+				}
+
+
+			animate = function () {
 			    requestAnimationFrame( animate );
-
-					// Simulate physics
-					scene.simulate();
 
 			    renderer.render( scene, camera );
 
-					update();
+					controls.update();
 
-					stats.update();
-			}
-
-			function update() {
-					tick++;
-
-					//controls.update();
-					computeJoints();
 					updateJoints();
+
 			}
 
 			function recomputeShootForces() {
@@ -370,8 +346,11 @@
 			function computeJoints() {
 					// target position as ball position
 					parser.eval(
-						`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+						`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (ball.position.z - 100) + `]`
 					);
+					//parser.eval(
+					//	`rd = [0, 2000, 0]`
+					//);
 					// UPDATE q vector with new angle values
 					// Cartesian error
 					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
@@ -403,10 +382,11 @@
 			}
 
 			function updateJoints() {
+
+				computeJoints();
+
 				var M = new THREE.Matrix4();
 				for (var i=0; i<n_joints; i++) {
-
-					tick ++;
 
 					var Inv = new THREE.Matrix4().getInverse(joints[i].matrix);
 
@@ -414,59 +394,30 @@
 					var S = new THREE.Matrix4();
 					S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
 					S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
-					if (i>0)
-						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i-1][0], dh[i-1][1])).toArray())));//dh[i][2])).toArray())));
-					M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
-					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
+					//if (i>0)
+					//	M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i-1][0], dh[i-1][1])).toArray())));//dh[i][2])).toArray())));
+					//M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
 
+					if (i>0)
+						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Txz(dh[i-1][0], dh[i-1][1], dh[i][2], q.get([i])).toArray()))));
+					else
+						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Txz(0, 0, dh[i][2], q.get([i])).toArray()))));
+
+					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
+					//console.log(T.elements);
+					//console.log(q.get([i]));
 
 
 
 					joints[i].applyMatrix(T);
+					joints[i].__dirtyPosition = true;
+					joints[i].__dirtyRotation = true;
+					//console.log(joints[i]);
 					//console.log(arrowHelperX[i]);
-					/*
-					* Frame origins
-					*/
-					//dirX[i].transformDirection(M[i]);
-					//dirY[i].transformDirection(M[i]);
-					//dirZ[i].transformDirection(M[i]);
-					//origin[i].setFromMatrixColumn(M[i], 3);
-					//var SX = new THREE.Matrix4();
-					//var SY = new THREE.Matrix4();
-					//var SZ = new THREE.Matrix4();
-					//S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
-					//S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
-
-					//var Mx = new THREE.Matrix4().copy(arrowHelperX[i].matrix);
-					//var My = new THREE.Matrix4().copy(arrowHelperY[i].matrix);
-					//var Mz = new THREE.Matrix4().copy(arrowHelperZ[i].matrix);
-
-					//arrowHelperX[i].applyMatrix(new THREE.Matrix4().extractRotation(Mx.transpose())); //new THREE.Matrix4().getInverse(arrowHelperX[i].matrix);
-					//arrowHelperY[i].applyMatrix(new THREE.Matrix4().extractRotation(My.transpose())); //new THREE.Matrix4().getInverse(arrowHelperY[i].matrix);
-					//arrowHelperZ[i].applyMatrix(new THREE.Matrix4().extractRotation(Mz.transpose())); //new THREE.Matrix4().getInverse(arrowHelperZ[i].matrix);
-					//var TX = (new THREE.Matrix4().multiply(M)).multiply(InvX);
-					//var TY = (new THREE.Matrix4().multiply(M)).multiply(InvY);
-					//var TZ = (new THREE.Matrix4().multiply(M)).multiply(InvZ);
-					//console.log(InvX.elements);
-					//console.log(Mx.elements);
-					//console.log(arrowHelperX[i].matrix.elements);
-
-					//console.log(arrowHelperY[i].matrix.elements);
-					//console.log(arrowHelperZ[i].matrix.elements);
-					//arrowHelperX[i].setDirection(new THREE.Vector3(1, 0, 0));
-					//arrowHelperX[i].applyMatrix(InvX);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
-					//arrowHelperX[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
-					//arrowHelperY[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
-					//arrowHelperZ[i].applyMatrix(M);// = new THREE.ArrowHelper( dirX[i], origin[i], arrlength, hexX, headLength, widthLength );
-					//console.log(i);
-					//console.log(M.elements);
-					//console.log(arrowHelperX[i].rotation);
-
-					//arrowHelperY[i].applyMatrix(TY);// = new THREE.ArrowHelper( dirY[i], origin[i], arrlength, hexY, headLength, widthLength );
-					//arrowHelperZ[i].applyMatrix(TZ);// = new THREE.ArrowHelper( dirZ[i], origin[i], arrlength, hexZ, headLength, widthLength );
 
 				}
 			}
+			window.onload = init;
 
 		</script>
 	</body>
