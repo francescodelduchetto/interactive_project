@@ -113,7 +113,7 @@
 						`q = [pi/2, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
-						`l = [1000, 0, 1000, 300]`
+						`l = [1500, 0, 1500, 300]`
 					)
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
@@ -163,10 +163,11 @@
 					for (var i=0; i<n_joints; i++) {
 						length[i] = dh[i][1];
 
-						if (i == n_joints-1)
-							length[i] *= 2;
-
-						geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
+						if (i == n_joints-1) {
+							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 20, 16 );
+						} else {
+							geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
+						}
 						materials[i] = new THREE.MeshNormalMaterial( );
 
 						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
@@ -197,6 +198,9 @@
 
 					ball.translateZ(ballInitPosition[2]);
 					ball.translateY(ballInitPosition[1]);
+
+					//ball.setCcdMotionThreshold(0.1);
+					//ball.setCcdSweptSphereRadius(25);
 
 					scene.add(ball);
 
@@ -351,17 +355,17 @@
 			}
 
 			function computeJoints() {
-					var jointVelMax = 0.1;
+					var jointVelMax = 0.05;
 					// target position as ball position
 					if (ball.position.z > 4000) {
 						parser.eval(
 							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
 						);
 						deltaT = deltaTDef;
-					} else if (ball.position.z < 0) {
+					} else if (ball.position.z < -1000) {
 						parser.eval(
-							`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
-							//`rd = [1000, 200, 0]`
+							//`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
+							`rd = [0, 2000, 0]`
 						);
 						deltaT = deltaTDef;
 					} else if (ball.position.z > 1000) {
@@ -373,9 +377,9 @@
 						parser.eval(
 							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
 						);
-						for (var i=0; i<n_joints; i++) {
-							deltaT[i] *= 1.02;
-						}
+						//for (var i=0; i<n_joints; i++) {
+						//	deltaT[i] *= 1.02;
+						//}
 					}
 					//parser.eval(
 					//	`rd = [0, 2000, 0]`
@@ -431,6 +435,9 @@
 					var S = new THREE.Matrix4();
 					S.multiply(new THREE.Matrix4().makeTranslation(length[i]/2, 0, 0));
 					S.multiply(new THREE.Matrix4().makeRotationZ(-math.pi/2));
+					if (i == n_joints-1)
+						S.multiply(new THREE.Matrix4().makeRotationZ(math.pi/2));
+
 					//if (i>0)
 					//	M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i-1][0], dh[i-1][1])).toArray())));//dh[i][2])).toArray())));
 					//M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
