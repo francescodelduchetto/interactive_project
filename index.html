@@ -58,7 +58,7 @@
 			//var widthLength = 15;
 
 			var rd = [-1000, -1000,0];
-			var deltaT = [0.0000001, 0.0000001, 0.0000001, 0.0000001] ;
+			var deltaTDef = [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT;
 			var maxDisp = 300;
 			var minDisp = 1;
 
@@ -110,14 +110,17 @@
 
 
 					parser.eval(
-						`q = [0, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
+						`q = [pi/2, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
 					);
 					parser.eval(
+						`l = [1000, 0, 1000, 300]`
+					)
+					parser.eval(
 						`dh(q1, q2, q3, q4) =
-						[0,   500, 0, q1;
-						 -pi/2, 0, 0, q2;
-						 0, 500, 0, q3;
-					   0, 200, 0,  q4]`
+						[    0, l[1], 0, q1;
+						 -pi/2, l[2], 0, q2;
+						     0, l[3], 0, q3;
+					       0, l[4], 0, q4]`
 					);
 					 parser.eval(
 						 `Txz(al, a, d, th) =
@@ -128,15 +131,15 @@
 					 );
 					 parser.eval(
 						 `J(q1, q2, q3, q4) =
-						 [ 200*sin(q1 + q2)*sin(q3)*sin(q4) - 500*sin(q1 + q2)*cos(q3) - 200*sin(q1 + q2)*cos(q3)*cos(q4) - 500*sin(q1), 200*sin(q1 + q2)*sin(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q3)*cos(q4) - 500*sin(q1 + q2)*cos(q3), - 500*cos(q1 + q2)*sin(q3) - 200*cos(q1 + q2)*cos(q3)*sin(q4) - 200*cos(q1 + q2)*cos(q4)*sin(q3), - 200*cos(q1 + q2)*cos(q3)*sin(q4) - 200*cos(q1 + q2)*cos(q4)*sin(q3);
-						   500*cos(q1) + 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4), 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4), - 500*sin(q1 + q2)*sin(q3) - 200*sin(q1 + q2)*cos(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q4)*sin(q3), - 200*sin(q1 + q2)*cos(q3)*sin(q4) - 200*sin(q1 + q2)*cos(q4)*sin(q3);
-						                                                                                                              0,                                                                                              0,                                                                 - 200*cos(q3 + q4) - 500*cos(q3),                                                     -200*cos(q3 + q4)]`
+						 [ l[4]*sin(q1 + q2)*sin(q3)*sin(q4) - l[1]*sin(q1) - l[3]*sin(q1 + q2)*cos(q3) - l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[2]*sin(q1 + q2), -sin(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -cos(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*cos(q1 + q2)*sin(q3 + q4);
+					 	   l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),  cos(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -sin(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*sin(q1 + q2)*sin(q3 + q4);
+				 		    	                                                                                                                      					0,                                               			   0,               - l[4]*cos(q3 + q4) - l[3]*cos(q3),              -l[4]*cos(q3 + q4)]`
 		 			);
 					 parser.eval(
 						 `f(q1, q2, q3, q4) =
-						 [500*cos(q1) + 500*cos(q1 + q2)*cos(q3) + 200*cos(q1 + q2)*cos(q3)*cos(q4) - 200*cos(q1 + q2)*sin(q3)*sin(q4),
- 						  500*sin(q1) + 500*sin(q1 + q2)*cos(q3) + 200*sin(q1 + q2)*cos(q3)*cos(q4) - 200*sin(q1 + q2)*sin(q3)*sin(q4),
-                                                                             							- 200*sin(q3 + q4) - 500*sin(q3)]`
+						 [l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),
+ 						  l[2]*sin(q1 + q2) + l[1]*sin(q1) + l[3]*sin(q1 + q2)*cos(q3) + l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[4]*sin(q1 + q2)*sin(q3)*sin(q4),
+                                                                                             										- l[4]*sin(q3 + q4) - l[3]*sin(q3)]`
 					 );
 
 					var dhf = parser.get('dh');
@@ -160,16 +163,20 @@
 					for (var i=0; i<n_joints; i++) {
 						length[i] = dh[i][1];
 
-						geometries[i] = new THREE.CylinderGeometry( 10, 10, length[i], 16 );
+						if (i == n_joints-1)
+							length[i] *= 2;
+
+						geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
 						materials[i] = new THREE.MeshNormalMaterial( );
 
 						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
 						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
 						scene.add( joints[i] );
 
-						joints[i].addEventListener('collision', function(object) {
-							console.log('joint' + i + ' collision');
-						});
+						joints[i].addEventListener('collision', (function(object) {
+							var n = i;
+							return function() {console.log('joint' + n + ' collision')};
+						})());
 
 					}
 
@@ -344,10 +351,32 @@
 			}
 
 			function computeJoints() {
+					var jointVelMax = 0.1;
 					// target position as ball position
-					parser.eval(
-						`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (ball.position.z - 100) + `]`
-					);
+					if (ball.position.z > 4000) {
+						parser.eval(
+							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+						);
+						deltaT = deltaTDef;
+					} else if (ball.position.z < 0) {
+						parser.eval(
+							`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
+							//`rd = [1000, 200, 0]`
+						);
+						deltaT = deltaTDef;
+					} else if (ball.position.z > 1000) {
+						parser.eval(
+							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
+						);
+						deltaT = deltaTDef;
+					} else {
+						parser.eval(
+							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+						);
+						for (var i=0; i<n_joints; i++) {
+							deltaT[i] *= 1.02;
+						}
+					}
 					//parser.eval(
 					//	`rd = [0, 2000, 0]`
 					//);
@@ -357,8 +386,8 @@
 					// Take gradient error
 					parser.eval(`qerr = transpose(J(q[1], q[2], q[3], q[4])) * cerr`);
 
-					var cerr = parser.get('cerr');
-					var qerr = parser.get('qerr');
+					//var cerr = parser.get('cerr');
+					//var qerr = parser.get('qerr');
 
 					// Limit joint displacements
 					//for (var i=0; i<n_joints; i++) {
@@ -369,7 +398,15 @@
 					//	}
 					//}
 
-					parser.eval(`q = q + [`+ deltaT.toString() +`] .* transpose(qerr)`);
+					//parser.eval(`vel = [`+ deltaT.toString() +`] .* qerr`);
+					parser.set(`vel`, []);
+					for (var i=1; i<=n_joints; i++) {
+						parser.eval(`vel[`+ i +`] = min(abs(`+ deltaT[i-1].toString() +` * qerr[`+ i +`]), `+ jointVelMax +`) * sign(qerr[`+ i +`])`);
+					}
+
+					//console.log(parser.get(`vel`));
+
+					parser.eval(`q = q + vel`);
 					q = parser.get('q');
 					//console.log('q    ' + parser.eval(`q`).toString());
 					//console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
