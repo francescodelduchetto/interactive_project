@@ -394,6 +394,12 @@
 					//parser.eval(
 					//	`rd = [0, 2000, 0]`
 					//);
+
+					// doesn't make the "hand" going inside the ground
+					var rd = parser.get('rd');
+					if (rd.get([1]) < length[n_joints - 1])
+						parser.eval(`rd = [rd[1], `+ length[n_joints - 1] +`, rd[3]]`);
+
 					// UPDATE q vector with new angle values
 					// Cartesian error
 					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
@@ -422,11 +428,13 @@
 
 					parser.eval(`q = q + vel`);
 					q = parser.get('q');
+
+					// limit joint 1
 					if (q.get([0]) > math.pi)
 						q.set([0], math.pi);
 					else if (q.get([0]) < 0)
 						q.set([0], 0);
-					console.log(q.get([0]));
+
 					//console.log('q    ' + parser.eval(`q`).toString());
 					//console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
 					//console.log('cerr ' + cerr.toString());
