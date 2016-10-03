@@ -164,11 +164,15 @@
 						length[i] = dh[i][1];
 
 						if (i == n_joints-1) {
-							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 20, 16 );
+							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 50, 16 );
 						} else {
 							geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
 						}
-						materials[i] = new THREE.MeshNormalMaterial( );
+						materials[i] = new Physijs.createMaterial(
+														new THREE.MeshNormalMaterial(),
+														1, // friction
+														1  // restitution
+													);
 
 						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
 						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
@@ -184,7 +188,7 @@
 					//scene.add( robot_arm );
 
 					// BALL
-					ballGeometry = new THREE.SphereGeometry( 50, 32, 32 );
+					ballGeometry = new THREE.SphereGeometry( 70, 32, 32 );
 					ballMaterial = new Physijs.createMaterial(
 													new THREE.MeshNormalMaterial(),
 													1, // friction
@@ -355,7 +359,7 @@
 			}
 
 			function computeJoints() {
-					var jointVelMax = 0.05;
+					var jointVelMax = 0.02;
 					// target position as ball position
 					if (ball.position.z > 4000) {
 						parser.eval(
@@ -373,7 +377,13 @@
 							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
 						);
 						deltaT = deltaTDef;
+						//parser.eval(
+						//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+						//);
 					} else {
+						//parser.eval(
+						//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+						//);
 						parser.eval(
 							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
 						);
@@ -412,6 +422,7 @@
 
 					parser.eval(`q = q + vel`);
 					q = parser.get('q');
+					q[3] = 0;
 					//console.log('q    ' + parser.eval(`q`).toString());
 					//console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
 					//console.log('cerr ' + cerr.toString());
