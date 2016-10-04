@@ -58,7 +58,7 @@
 			//var widthLength = 15;
 
 			var rd = [-1000, -1000,0];
-			var deltaTDef = [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT;
+			var deltaTDef =  [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT = deltaTDef;
 			var maxDisp = 300;
 			var minDisp = 1;
 
@@ -70,7 +70,38 @@
 			var ballForce = new THREE.Vector3(0,0,-ballTotalForce);
 			var percForce = 1.0;
 
+			var GameState = {
+				READY : "ready",  // waiting for user shooting
+				SHOOT : "shoot",  // ball travelling to the goal
+				GOAL : "goal",   // user scored, ball inside the dof_enable
+				SAVED : "saved",  // ball bounced against the robot
+				MISSED : "missed" // ball is outside the net and it has not been saved
+			};
+			var game = {
+				stateInternal: undefined,
+				lastChangeTimeInternal: Date.now(),
+				stateListener: function(new_state, old_state) {},
+				set state(new_state) {
+					var old_state = this.stateInternal;
+					this.stateInternal = new_state;
+					this.stateListener(new_state, old_state);
+					this.lastChangeTimeInternal = Date.now();
+				},
+				get state() {
+					return this.stateInternal;
+				},
+				get timeSinceChange() {
+					return Date.now() - this.lastChangeTimeInternal;
+				},
+				registerStateChangeListener: function(listener) {
+					this.stateListener = listener;
+				}
+			};
 
+			game.registerStateChangeListener(function(n, o) {console.log("GAME_STATE_CHANGE: " + o + " -> " + n)});
+
+			var time_since_shoot = 0;
+			const RESET_TIME = 5000; // [ms]
 
 			//animate();
 
@@ -164,11 +195,15 @@
 						length[i] = dh[i][1];
 
 						if (i == n_joints-1) {
-							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 20, 16 );
+							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 50, 16 );
 						} else {
 							geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
 						}
-						materials[i] = new THREE.MeshNormalMaterial( );
+						materials[i] = new Physijs.createMaterial(
+														new THREE.MeshNormalMaterial(),
+														1, // friction
+														1  // restitution
+													);
 
 						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
 						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
@@ -184,7 +219,7 @@
 					//scene.add( robot_arm );
 
 					// BALL
-					ballGeometry = new THREE.SphereGeometry( 50, 32, 32 );
+					ballGeometry = new THREE.SphereGeometry( 70, 32, 32 );
 					ballMaterial = new Physijs.createMaterial(
 													new THREE.MeshNormalMaterial(),
 													1, // friction
@@ -282,6 +317,8 @@
 					// Trigger for user events
 					initEventHandling();
 
+					game.state = GameState.READY;
+
 					requestAnimationFrame( animate );
 
 					scene.simulate();
@@ -293,7 +330,10 @@
 							var shootMaxXAngle = math.pi/2, shootMinXAngle = 0;
 							var shootMaxYAngle = math.pi/6, shootMinYAngle = -math.pi/3;
 							if (evt.keyCode == 32) { // 32 = spacebar
-								ball.applyCentralImpulse(ballForce); // Apply force to the ball
+								//if (game_state == GameState.READY) {
+									ball.applyCentralImpulse(ballForce); // Apply force to the ball
+								//	game_state = GameState.SHOOT;
+								//}
 							} else if (evt.keyCode == 65) { // 37 = left arrow
 								shootArrowYAngle += (shootArrowYAngle + shootAngleStep < shootMaxYAngle) ? shootAngleStep : 0;
 								recomputeShootForces();
@@ -329,13 +369,31 @@
 
 
 			animate = function () {
-			    requestAnimationFrame( animate );
+			  requestAnimationFrame( animate );
 
-			    renderer.render( scene, camera );
+				updateGameState();
 
-					controls.update();
+				updateJoints();
 
-					updateJoints();
+				controls.update();
+
+				renderer.render( scene, camera );
+			}
+
+			function updateGameState() {
+				if (game.state == GameState.READY && ball.getLinearVelocity().z < 0) {
+					game.state = GameState.SHOOT;
+					time_since_shoot = Date.now();
+				} else if (game.state == GameState.SHOOT) {
+					if (ball.getLinearVelocity().z > 0) {
+						game.state = GameState.SAVED;
+					} else if (ball.position.z < 0){
+						game.state = GameState.MISSED;
+					}
+				}
+				if (game.state != GameState.READY && game.timeSinceChange > RESET_TIME) {
+					game.state = GameState.READY;
+				}
 
 			}
 
@@ -355,35 +413,66 @@
 			}
 
 			function computeJoints() {
-					var jointVelMax = 0.05;
-					// target position as ball position
-					if (ball.position.z > 4000) {
-						parser.eval(
-							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
-						);
-						deltaT = deltaTDef;
-					} else if (ball.position.z < -1000) {
-						parser.eval(
-							//`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
-							`rd = [0, 2000, 0]`
-						);
-						deltaT = deltaTDef;
-					} else if (ball.position.z > 1000) {
-						parser.eval(
-							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
-						);
-						deltaT = deltaTDef;
+					var jointVelMax = 0.1;
+					if (game.state == GameState.SHOOT) {
+						if (ball.position.z < 1000) {
+							parser.eval(
+									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+							);
+						} else if (ball.position.z < 4000) {
+							parser.eval(
+									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
+							);
+						} else {
+							parser.eval(
+								`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+							);
+						}
 					} else {
 						parser.eval(
-							`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+							`rd = [0, l[1]+l[2]+l[3]+l[4], 0]`
 						);
-						//for (var i=0; i<n_joints; i++) {
-						//	deltaT[i] *= 1.02;
-						//}
 					}
+					// target position as ball position
+					//if (ball.position.z > 4000) {
+					//	parser.eval(
+					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+					//	);
+					//	deltaT = deltaTDef;
+					//} else if (ball.position.z < -1000) {
+					//	parser.eval(
+					//		//`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
+					//		`rd = [0, 2000, 0]`
+					//	);
+					//	deltaT = deltaTDef;
+					//} else if (ball.position.z > 1000) {
+					//	parser.eval(
+					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
+					//	);
+					//	deltaT = deltaTDef;
+					//	//parser.eval(
+					//	//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+					//	//);
+					//} else {
+					//	//parser.eval(
+					//	//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+					//	//);
+					//	parser.eval(
+					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+					//	);
+					//	//for (var i=0; i<n_joints; i++) {
+					//	//	deltaT[i] *= 1.02;
+					//	//}
+					//}
 					//parser.eval(
 					//	`rd = [0, 2000, 0]`
 					//);
+
+					// doesn't make the "hand" going inside the ground
+					var rd = parser.get('rd');
+					if (rd.get([1]) < length[n_joints - 1])
+						parser.eval(`rd = [rd[1], `+ length[n_joints - 1] +`, rd[3]]`);
+
 					// UPDATE q vector with new angle values
 					// Cartesian error
 					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
@@ -412,6 +501,14 @@
 
 					parser.eval(`q = q + vel`);
 					q = parser.get('q');
+
+					// limit joint 1
+					if (q.get([0]) > math.pi)
+						q.set([0], math.pi);
+					else if (q.get([0]) < 0)
+						q.set([0], 0);
+
+
 					//console.log('q    ' + parser.eval(`q`).toString());
 					//console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
 					//console.log('cerr ' + cerr.toString());
