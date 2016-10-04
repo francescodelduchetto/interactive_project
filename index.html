@@ -212,7 +212,7 @@
 						.3 // low restitution
 					);
 					ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
-					ground_material.map.repeat.set( 3, 3 );
+					ground_material.map.repeat.set( 10, 50 );
 
 					ground_geometry = new THREE.PlaneGeometry(10000, 100000, 100);
 					ground = new Physijs.PlaneMesh(	ground_geometry,	ground_material,	0 );
