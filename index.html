@@ -63,7 +63,7 @@
 			var minDisp = 1;
 
 			var ballInitPosition = [0, 100, 10000];
-			var shootArrow, forceBar;
+			var shootArrow, arrowShape, arrowGeometry, forceBar, barShape, barGeometry;
 			var shootArrowXAngle = 0;
 			var shootArrowYAngle = 0;
 			var ballTotalForce = 50000;
@@ -98,12 +98,11 @@
 				}
 			};
 
-			game.registerStateChangeListener(function(n, o) {console.log("GAME_STATE_CHANGE: " + o + " -> " + n)});
+			game.registerStateChangeListener(function(n, o) {
+				console.log("GAME_STATE_CHANGE: " + o + " -> " + n);
+			});
 
-			var time_since_shoot = 0;
 			const RESET_TIME = 5000; // [ms]
-
-			//animate();
 
 			init = function () {
 					// RENDERER
@@ -231,8 +230,8 @@
 						10 // mass
 					);
 
-					ball.translateZ(ballInitPosition[2]);
-					ball.translateY(ballInitPosition[1]);
+					//ball.translateZ(ballInitPosition[2]);
+					//ball.translateY(ballInitPosition[1]);
 
 					//ball.setCcdMotionThreshold(0.1);
 					//ball.setCcdSweptSphereRadius(25);
@@ -253,7 +252,7 @@
 					ground = new Physijs.PlaneMesh(	ground_geometry,	ground_material,	0 );
 					ground.rotateX(-math.pi/2);
 					ground.receiveShadow = true;
-					//ground.position.y=-1000;
+					ground.position.y=-1;
 					scene.add(ground);
 
 					//luce NECESSARIA per la texture
@@ -273,7 +272,7 @@
 					scene.add( light );
 
 					// SHOOT ARROW
-					var arrowShape = new THREE.Shape();
+					arrowShape = new THREE.Shape();
 					arrowShape.moveTo(  -50, 0 );
 					arrowShape.lineTo(  -100, 150 );
 					arrowShape.lineTo( -200, 150 );
@@ -282,26 +281,26 @@
 					arrowShape.lineTo(  100, 150 );
 					arrowShape.lineTo(  50, 0 );
 					arrowShape.lineTo(  -50, 0 );
-					var arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+					arrowGeometry = new THREE.ShapeGeometry(arrowShape);
 					shootArrow = new THREE.Mesh(arrowGeometry, new THREE.MeshNormalMaterial( { } ));
 
-					shootArrow.translateZ(ballInitPosition[2] - 50);
-					shootArrow.rotateX(-math.pi/2);
-					shootArrow.rotateY(0);
+					//shootArrow.translateZ(ballInitPosition[2] - 50);
+					//shootArrow.rotateX(-math.pi/2);
+					//shootArrow.rotateY(0);
 
           scene.add(shootArrow);
 
 					// FORCE BAR
-					var barShape = new THREE.Shape();
+					barShape = new THREE.Shape();
 					barShape.moveTo(0, 0);
 					barShape.lineTo(0, 200);
 					barShape.lineTo(20, 200);
 					barShape.lineTo(20, 0);
 					barShape.lineTo(0, 0);
-					var barGeometry = new THREE.ShapeGeometry(barShape);
+					barGeometry = new THREE.ShapeGeometry(barShape);
 					forceBar = new THREE.Mesh(barGeometry, new THREE.MeshNormalMaterial());
-					forceBar.position.x = 200;
-					forceBar.position.z = ballInitPosition[2];
+					//forceBar.position.x = 200;
+					//forceBar.position.z = ballInitPosition[2];
 
 					scene.add(forceBar);
 
@@ -322,6 +321,36 @@
 					requestAnimationFrame( animate );
 
 					scene.simulate();
+
+					setUpReady();
+			}
+
+			function setUpReady() {
+				// reset ball
+				ball.setLinearVelocity(new THREE.Vector3(0, 0, 0));
+				ball.setAngularVelocity(new THREE.Vector3(0, 0, 0));
+				ball.position.z = ballInitPosition[2];
+				ball.position.y = ballInitPosition[1];
+				ball.position.x = ballInitPosition[0];
+				ball.__dirtyPosition = true;
+				ball.__dirtyRotation = true;
+
+				// reset shootArrow
+				shootArrow.position.z = (ballInitPosition[2] - 50);
+				//shootArrow.rotateX(-math.pi/2)
+				shootArrow.rotation.set(-math.pi/2,0,0,'XYZ');
+				shootArrowYAngle = 0;
+				shootArrowXAngle = 0;
+				//shootArrow.rotateZ(shootArrowYAngle);
+				//shootArrow.rotateX(shootArrowXAngle);
+
+				// reset forceBar
+				forceBar.position.x = 200;
+				forceBar.position.z = ballInitPosition[2];
+				percForce = 1.0;
+				forceBar.scale.setY(percForce);
+
+				recomputeShootForces();
 			}
 
 			function initEventHandling() {
@@ -381,18 +410,19 @@
 			}
 
 			function updateGameState() {
-				if (game.state == GameState.READY && ball.getLinearVelocity().z < 0) {
+				console.log(ball.getLinearVelocity().z);
+				if (game.state == GameState.READY && ball.getLinearVelocity().z < 0 && ball.position.z != ballInitPosition[2]) {
 					game.state = GameState.SHOOT;
-					time_since_shoot = Date.now();
 				} else if (game.state == GameState.SHOOT) {
 					if (ball.getLinearVelocity().z > 0) {
 						game.state = GameState.SAVED;
-					} else if (ball.position.z < -100){
+					} else if (ball.position.z < -200){
 						game.state = GameState.MISSED;
 					}
 				}
 				if (game.state != GameState.READY && game.timeSinceChange > RESET_TIME) {
 					game.state = GameState.READY;
+					setUpReady();
 				}
 
 			}
@@ -417,7 +447,7 @@
 					if (game.state == GameState.SHOOT) {
 						if (ball.position.z < 1000) {
 							parser.eval(
-									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
+									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (ball.position.z + 50)  + `]`
 							);
 						} else if (ball.position.z < 4000) {
 							parser.eval(
@@ -430,7 +460,7 @@
 						}
 					} else {
 						parser.eval(
-							`rd = [0, l[1]+l[2]+l[3]+l[4], 0]`
+							`rd = [0, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
 						);
 					}
 					// target position as ball position
