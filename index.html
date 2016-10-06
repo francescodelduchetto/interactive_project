@@ -387,7 +387,7 @@
 				} else if (game.state == GameState.SHOOT) {
 					if (ball.getLinearVelocity().z > 0) {
 						game.state = GameState.SAVED;
-					} else if (ball.position.z < 0){
+					} else if (ball.position.z < -100){
 						game.state = GameState.MISSED;
 					}
 				}
