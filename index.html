@@ -410,7 +410,7 @@
 			}
 
 			function updateGameState() {
-				console.log(ball.getLinearVelocity().z);
+				//console.log(ball.getLinearVelocity().z);
 				if (game.state == GameState.READY && ball.getLinearVelocity().z < 0 && ball.position.z != ballInitPosition[2]) {
 					game.state = GameState.SHOOT;
 				} else if (game.state == GameState.SHOOT) {
@@ -443,24 +443,33 @@
 			}
 
 			function computeJoints() {
-					var jointVelMax = 0.1;
+					var jointVelMax = 0.07;
 					if (game.state == GameState.SHOOT) {
 						if (ball.position.z < 1000) {
+							jointVelMax = 0.07;
 							parser.eval(
 									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (ball.position.z + 50)  + `]`
 							);
 						} else if (ball.position.z < 4000) {
+							jointVelMax = 0.07;
 							parser.eval(
 									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
 							);
 						} else {
+							jointVelMax = 0.05;
 							parser.eval(
 								`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
 							);
 						}
 					} else {
+						jointVelMax = 0.01;
+						var d = 0;//1000 * shootArrow.rotation.z * -1;
+					//	if (shootArrow.rotation.z > 0)
+					//		d = -1000;
+					//	if (shootArrow.rotation.z < 0)
+					//		d = 500;
 						parser.eval(
-							`rd = [0, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
+							`rd = [`+ d +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
 						);
 					}
 					// target position as ball position
