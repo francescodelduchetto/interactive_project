@@ -13,6 +13,7 @@
 		<script src="js/three.js/build/three.min.js"></script>
 		<script src="js/OrbitControl.js"></script>
 		<script src="js/Physijs/physi.js"></script>
+		<script src="js/cloth.js/Cloth.js"></script>
 		<script src="js/stats.min.js"></script>
 		<script>
 
@@ -32,30 +33,20 @@
 			var parser;
 			var stats;
 
-			var ball;
-
+			var net, netGeometry, netGeometry1;
+			var segs = 10;
+			var pins = [];
+			var cloth, cloth1;
 			//var M = {}; //new THREE.Matrix4();
 			var q = {}, dh, n_joints, Txz, J;
 
-			var ground, ground_material, ground_geometry, ballGeometry, ballMaterial;
+			var ground, ground_material, ground_geometry, ball, ballSize = 170,
+					ballGeometry, ballMaterial;
+			var font, textShape, textMaterial, textMesh = new THREE.Mesh(), text = "0 - 0";
 			var joints = {};
 			var geometries = {};
 			var materials = {};
 			var length = {};
-
-			//var arrowHelperX = {};
-			//var arrowHelperY = {};
-			//var arrowHelperZ = {};
-			//var dirX = {};
-			//var dirY = {};
-			//var dirZ = {};
-			//var origin =  {};
-			//var arrlength = 100;
-			//var hexX = 0xff0000;
-			//var hexY = 0x00ff00;
-			//var hexZ = 0x0000ff;
-			//var headLength = 15;
-			//var widthLength = 15;
 
 			var rd = [-1000, -1000,0];
 			var deltaTDef =  [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT = deltaTDef;
@@ -70,6 +61,7 @@
 			var ballForce = new THREE.Vector3(0,0,-ballTotalForce);
 			var percForce = 1.0;
 
+
 			var GameState = {
 				READY : "ready",  // waiting for user shooting
 				SHOOT : "shoot",  // ball travelling to the goal
@@ -80,6 +72,8 @@
 			var game = {
 				stateInternal: undefined,
 				lastChangeTimeInternal: Date.now(),
+				pointsRobot: 0,
+				pointsUser: 0,
 				stateListener: function(new_state, old_state) {},
 				set state(new_state) {
 					var old_state = this.stateInternal;
@@ -95,11 +89,17 @@
 				},
 				registerStateChangeListener: function(listener) {
 					this.stateListener = listener;
-				}
+				},
 			};
 
 			game.registerStateChangeListener(function(n, o) {
 				console.log("GAME_STATE_CHANGE: " + o + " -> " + n);
+				if (n == GameState.GOAL || n == GameState.MISSED) {
+					++game.pointsUser;
+				} else if (n == GameState.SAVED){
+					++game.pointsRobot;
+				}
+				createText();
 			});
 
 			const RESET_TIME = 5000; // [ms]
@@ -188,6 +188,59 @@
 
 					//var robot_arm = new THREE.Group();
 
+
+					// NET
+					cloth = new Cloth(2000, 2000);
+					cloth1 = new Cloth(2000, 2000);
+					cloth.wind = true;
+					cloth1.wind = true;
+					netGeometry1 = new THREE.ParametricGeometry(cloth1.clothFunction, segs, segs);
+					cloth1.setGeometry(netGeometry1);
+					var net1 = new THREE.Mesh(netGeometry1, new THREE.MeshNormalMaterial());
+					//scene.add(net1);
+					// Initialize pins
+					var pins = [];
+					for (var i=0; i<=segs; i++) {
+						pins.push(i);
+						pins.push(i*(segs+1));
+						pins.push((i+1)*(segs+1)-1);
+						pins.push((segs+1)*(segs+1)-1-i);
+					}
+					cloth.pins = pins;
+					var pins = [];
+					for (var i=0; i<segs; i++) {
+						pins.push(i);
+						pins.push(i*11);
+						pins.push((i+1)*11-1);
+						pins.push(120-i);
+					}
+					cloth1.pins = pins;
+
+					var loaderNet = new THREE.TextureLoader();
+					var clothTexture = loaderNet.load( 'images/netthick.png' );
+					clothTexture.wrapS = clothTexture.wrapT = THREE.RepeatWrapping;
+
+					//clothTexture.repeat.set( 1, 1 );
+				  clothTexture.anisotropy = 100;
+
+					var clothMaterial = new THREE.MeshPhongMaterial( {
+						specular: 0x030303,
+						map: clothTexture,
+						side: THREE.DoubleSide,
+						alphaTest: 0.5
+					} );
+
+					// net geometry
+					netGeometry =  new THREE.ParametricGeometry( cloth.clothFunction, segs, segs );
+					cloth.setGeometry(netGeometry);
+
+					net = new THREE.Mesh( netGeometry, clothMaterial );
+					net.position.set( 0, 0, 0 );
+					net.castShadow = true;
+					scene.add( net );
+					net.customDepthMaterial = new THREE.MeshBasicMaterial( { map: clothTexture, transparent: true } ) ;
+
+
 					// Create the robot arm according to the DH table
 					var T = new THREE.Matrix4();
 					for (var i=0; i<n_joints; i++) {
@@ -218,7 +271,7 @@
 					//scene.add( robot_arm );
 
 					// BALL
-					ballGeometry = new THREE.SphereGeometry( 70, 32, 32 );
+					ballGeometry = new THREE.SphereGeometry( ballSize, 32, 32 );
 					ballMaterial = new Physijs.createMaterial(
 													new THREE.MeshNormalMaterial(),
 													1, // friction
@@ -237,6 +290,8 @@
 					//ball.setCcdSweptSphereRadius(25);
 
 					scene.add(ball);
+					cloth.setBall(ball);
+					cloth1.setBall(ball);
 
 					//GROUND
 					var loader= new THREE.TextureLoader();
@@ -273,14 +328,14 @@
 
 					// SHOOT ARROW
 					arrowShape = new THREE.Shape();
-					arrowShape.moveTo(  -50, 0 );
-					arrowShape.lineTo(  -100, 150 );
-					arrowShape.lineTo( -200, 150 );
-					arrowShape.lineTo(  0, 300 );
-					arrowShape.lineTo(  200, 150 );
-					arrowShape.lineTo(  100, 150 );
-					arrowShape.lineTo(  50, 0 );
-					arrowShape.lineTo(  -50, 0 );
+					arrowShape.moveTo( -50, 0 );
+					arrowShape.lineTo( -100, 150 );
+					arrowShape.lineTo(-200, 150 );
+					arrowShape.lineTo( 0, 300 );
+					arrowShape.lineTo( 200, 150 );
+					arrowShape.lineTo( 100, 150 );
+					arrowShape.lineTo( 50, 0 );
+					arrowShape.lineTo( -50, 0 );
 					arrowGeometry = new THREE.ShapeGeometry(arrowShape);
 					shootArrow = new THREE.Mesh(arrowGeometry, new THREE.MeshNormalMaterial( { } ));
 
@@ -323,6 +378,32 @@
 					scene.simulate();
 
 					setUpReady();
+			}
+
+			function createText() {
+				text = game.pointsUser + " - " + game.pointsRobot;
+				// Text points count
+				var loader = new THREE.FontLoader();
+
+				scene.remove(textMesh);
+				loader.load('js/three.js/examples/fonts/gentilis_bold.typeface.json', function ( response ) {
+					textShape = new THREE.TextGeometry(text, {font: response,
+						        size: 20, // font size
+						        height: 1, // how much extrusion (how thick / deep are the letters)
+						        curveSegments: 12,
+						        bevelThickness: 1,
+						        bevelSize: 1,
+						        bevelEnabled: true}
+									);
+					textShape.computeBoundingBox();
+					textMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+					textMesh = new THREE.Mesh(textShape, textMaterial);
+					//textMesh.translateY(4000);
+					textMesh.translateZ(ballInitPosition[2] - 3000);
+					textMesh.translateX(1000);
+					textMesh.scale.set(20, 20, 20);
+					scene.add(textMesh);
+				} );
 			}
 
 			function setUpReady() {
@@ -398,6 +479,35 @@
 
 
 			animate = function () {
+				var time = Date.now();
+
+				cloth.windStrength = Math.cos( time / 7000 ) * 20 + 40;
+				cloth.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth.windStrength );
+				cloth1.windStrength = Math.cos( time / 70 ) * 50 + 140;
+				cloth1.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth1.windStrength );
+				cloth.simulate( time );
+				cloth1.simulate( time );
+
+				var p = cloth.particles;
+				var p1 = cloth1.particles;
+				//console.log(p[37].position);
+				for ( var i = 0; i < p.length; i ++ ) {
+					netGeometry.vertices[ i ].copy( p[ i ].position );
+				}
+				for ( var i = 0; i < p1.length; i ++ ) {
+					//console.log(p1[i].position);
+					netGeometry1.vertices[ i ].copy( p1[ i ].position );
+				}
+				netGeometry.computeFaceNormals();
+				netGeometry.computeVertexNormals();
+				netGeometry.normalsNeedUpdate = true;
+				netGeometry.verticesNeedUpdate = true;
+				netGeometry1.computeFaceNormals();
+				netGeometry1.computeVertexNormals();
+				netGeometry1.normalsNeedUpdate = true;
+				netGeometry1.verticesNeedUpdate = true;
+
+
 			  requestAnimationFrame( animate );
 
 				updateGameState();
@@ -424,7 +534,7 @@
 					game.state = GameState.READY;
 					setUpReady();
 				}
-
+				textMesh.lookAt(camera.position);
 			}
 
 			function recomputeShootForces() {
@@ -443,22 +553,25 @@
 			}
 
 			function computeJoints() {
+					parser.eval(`sl = l[1]+l[2]+l[3]+l[4]`)
+					var distance_limit = parser.get(`sl`);
+					//&console.log(math.min(ball.position.y, distance_limit));
 					var jointVelMax = 0.07;
 					if (game.state == GameState.SHOOT) {
 						if (ball.position.z < 1000) {
 							jointVelMax = 0.07;
 							parser.eval(
-									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (ball.position.z + 50)  + `]`
+									`rd = [` + math.min(ball.position.x, distance_limit) + ',' + math.min(ball.position.y, distance_limit) + ',' + math.min(ball.position.z + 50, distance_limit)  + `]`
 							);
 						} else if (ball.position.z < 4000) {
 							jointVelMax = 0.07;
 							parser.eval(
-									`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
+									`rd = [` + math.min(ball.position.x, distance_limit)+ ',' + math.min(ball.position.y, distance_limit) + ',' + (-2000) + `]`
 							);
 						} else {
 							jointVelMax = 0.05;
 							parser.eval(
-								`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
+								`rd = [` + math.min(ball.position.x, distance_limit) + ',' + math.min(ball.position.y, distance_limit) + ',' + 0 + `]`
 							);
 						}
 					} else {
@@ -472,6 +585,10 @@
 							`rd = [`+ d +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
 						);
 					}
+					parser.eval(
+						`rd = [`+ 0 +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
+					);
+					//console.log((parser.get(`rd`).toString()));
 					// target position as ball position
 					//if (ball.position.z > 4000) {
 					//	parser.eval(
