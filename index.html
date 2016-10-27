@@ -9,6 +9,8 @@
 		</style>
 	</head>
 	<body>
+
+    <script src="js/three.js/build/three.js"></script>
 		<script src="js/math.js/math.min.js"></script>
 		<script src="js/three.js/build/three.min.js"></script>
 		<script src="js/OrbitControl.js"></script>
@@ -26,23 +28,31 @@
 
 			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
 			Physijs.scripts.ammo = '../ammo.js';
-
+			var segs = 40;
+			var loadTexture;
+			var SkyBox = new THREE.Vector3( 120000, 40000, 120000 );
+			var texture_placeholder;
+			var area1Shape,area1, area1ShapeGeometry;
+			var aggregate, aggregateMaterial, aggregateGeometry;
+			var penaltyShape, penalty, penaltyShapeGeometry;
+			var area2Shape,area2, area2ShapeGeometry;
+			var cloth1,cloth2,cloth3,cloth4;
+			var net1;
+			var net1Geometry,net2Geometry,net3Geometry,net4Geometry;
+			var windForce;
+			var windStrength;
 			var scene, camera, renderer, controls;
 			var init, animate;
 
 			var parser;
 			var stats;
-
-			var net, netGeometry, netGeometry1;
-			var segs = 10;
 			var pins = [];
-			var cloth, cloth1;
-			//var M = {}; //new THREE.Matrix4();
 			var q = {}, dh, n_joints, Txz, J;
 
 			var ground, ground_material, ground_geometry, ball, ballSize = 170,
 					ballGeometry, ballMaterial;
 			var font, textShape, textMaterial, textMesh = new THREE.Mesh(), text = "0 - 0";
+			var loader = new THREE.FontLoader(), loader1 = new THREE.FontLoader();
 			var joints = {};
 			var geometries = {};
 			var materials = {};
@@ -52,7 +62,7 @@
 			var deltaTDef =  [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT = deltaTDef;
 			var maxDisp = 300;
 			var minDisp = 1;
-
+			var goalLine,goalLineShape,goalLineShape,goalLineGeometry;
 			var ballInitPosition = [0, 100, 10000];
 			var shootArrow, arrowShape, arrowGeometry, forceBar, barShape, barGeometry;
 			var shootArrowXAngle = 0;
@@ -94,15 +104,16 @@
 
 			game.registerStateChangeListener(function(n, o) {
 				console.log("GAME_STATE_CHANGE: " + o + " -> " + n);
-				if (n == GameState.GOAL || n == GameState.MISSED) {
+				if (n == GameState.GOAL) {
 					++game.pointsUser;
-				} else if (n == GameState.SAVED){
+				} else if (n == GameState.SAVED || n == GameState.MISSED){
 					++game.pointsRobot;
 				}
-				createText();
+				if (n == GameState.READY)
+					createText();
 			});
 
-			const RESET_TIME = 5000; // [ms]
+			const RESET_TIME = 10000; // [ms]
 
 			init = function () {
 					// RENDERER
@@ -126,21 +137,20 @@
 					)
 
 					// CAMERA
-			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
-			    //camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2,  window.innerHeight / 2, window.innerHeight / -2, 1, 20000 );
-			    //camera.position.z = ballInitPosition[2];
+			    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 800000 );
 			    camera.position.z = ballInitPosition[2] + 1000;
-			    //camera.position.x = 1000;
 			    camera.position.y = 700;
-					//camera.lookAt(new THREE.Vector3(ballInitPosition[0], ballInitPosition[1], ballInitPosition[2]));
 					camera.lookAt(new THREE.Vector3(0,0,0));
+
+
+					loadSkyBox();
 
 					// MATHJS PARSER
 				 	parser = math.parser();
 
 
 					parser.eval(
-						`q = [pi/2, 0, 0, 0]`//-pi/2, -0.7853981633974488, -0.7853981633974488]`
+						`q = [pi/2, 0, 0, 0]`
 					);
 					parser.eval(
 						`l = [1500, 0, 1500, 300]`
@@ -178,7 +188,6 @@
 
 					dh = dhf(0, 0, 0, 0).toArray();
 					n_joints = dh.length;
-					console.log('N joints:' + n_joints);
 
 					//TextureLoader
 						loader = new THREE.TextureLoader();
@@ -186,60 +195,284 @@
 					for (var i=0; i<n_joints; i++)
 						q[i] = 0;
 
-					//var robot_arm = new THREE.Group();
+
+					//Bars
+					var loadergoalBar = new THREE.TextureLoader();
+					var goalBarTexture =loadergoalBar.load('images/bar.JPG');
+					goalBarTexture.wrapS = goalBarTexture.wrapT = THREE.RepeatWrapping;
+
+					var goalBarMaterial = new Physijs.createMaterial(
+														new THREE.MeshPhongMaterial({
+															specular: 0x030303,
+															map: goalBarTexture,
+															side: THREE.DoubleSide,
+															alphaTest: 0.5
+														}),
+														1, // friction
+														1  // restitution
+													);
+
+					var	goalBarGeometry =  new THREE.CylinderGeometry(10,10,380);
+					var	goalBar = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar.position.set( 3500, 0, -500 );
+					goalBar.translateY( 1800 );
+					goalBar.scale.set( 10, 10, 10 );
+					scene.add( goalBar );
+
+					var	goalBar2 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar2.position.set( -3500, 0, -500 );
+					goalBar2.translateY( 1800 );
+					goalBar2.scale.set( 10, 10, 10 );
+					scene.add( goalBar2 );
+
+					var	goalBar3 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar3.position.set( 0, 0, -500 );
+					goalBar3.translateY( 3700 );
+					goalBar3.rotateZ(math.pi/2);
+					goalBar3.scale.set( 10, 18.5, 10 );
+					scene.add( goalBar3 );
+
+					var	goalBar4 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar4.position.set( 0, 0, -2000 );
+					goalBar4.translateY( 3700 );
+					goalBar4.rotateZ(math.pi/2);
+					goalBar4.scale.set( 4, 18.5, 4 );
+					scene.add( goalBar4 );
+
+					var	goalBar5 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar5.position.set( -3500, 3700, -1250 );
+					goalBar5.rotateX(math.pi/2);
+					goalBar5.scale.set( 4, 4, 4 );
+					scene.add( goalBar5 );
+
+					var	goalBar6 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar6.position.set( 3500, 3700, -1250 );
+					goalBar6.rotateX(math.pi/2);
+					goalBar6.scale.set( 4, 4, 4 );
+					scene.add( goalBar6 );
+
+					var	goalBar11 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar11.position.set( -3500,1800,-2000 );
+					goalBar11.scale.set( 4,10, 4 );
+					scene.add( goalBar11 );
+
+					var	goalBar7 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar7.position.set( 3500,1800,-2000 );
+					goalBar7.scale.set( 4,10, 4 );
+					scene.add( goalBar7 );
+
+					var	goalBar8 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar8.position.set(  3500, 0, -1250  );
+					goalBar8.rotateX(math.pi/2);
+					goalBar8.scale.set( 4,4, 4 );
+					scene.add( goalBar8 );
+
+					var	goalBar9 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar9.position.set(  -3500, 0, -1250  );
+					goalBar9.rotateX(math.pi/2);
+					goalBar9.scale.set( 4,4, 4 );
+					scene.add( goalBar9 );
+
+					var	goalBar10 = new Physijs.CylinderMesh( goalBarGeometry, goalBarMaterial, 0 );
+					goalBar10.position.set( 0, 0, -2000 );
+					goalBar10.rotateZ(math.pi/2);
+					goalBar10.scale.set( 4, 18.5, 4 );
+					scene.add( goalBar10 );
+
+					//field's white lines
+					goalLineShape = new THREE.Shape();goalLineShape.lineTo( 15000,0 );
+					goalLineShape.lineTo( 15000, 200 );
+					goalLineShape.lineTo( -15000, 200 );
+					goalLineShape.lineTo( -15000,0 );
+					goalLineShape.lineTo( 0,0 );
+					goalLineGeometry = new THREE.ShapeGeometry(goalLineShape);
+					goalLine = new THREE.Mesh(goalLineGeometry, new THREE.MeshNormalMaterial( { } ));
+					scene.add(goalLine);
+					goalLine.rotateX(-math.pi/2);
+					goalLine.translateY(500);
+					goalLine.translateZ(50);
+
+					area1Shape =new THREE.Shape();
+
+					area1Shape.lineTo( 5000,0 );
+					area1Shape.lineTo( 5000, 5000 );
+					area1Shape.lineTo( -5000, 5000 );
+					area1Shape.lineTo( -5000,0 );
+					area1Shape.lineTo( -4900,0 );
+					area1Shape.lineTo( -4900,4900 );
+					area1Shape.lineTo( 4900,4900 );
+					area1Shape.lineTo( 4900,0 );
+					area1Shape.lineTo( -5000,0 );
+
+					area1ShapeGeometry = new THREE.ShapeGeometry(area1Shape);
+					area1 = new THREE.Mesh (area1ShapeGeometry, new THREE.MeshNormalMaterial( { } ));
+					area1.rotateY(math.pi);
+					area1.rotateX(-math.pi/2);
+					area1.translateY(-500);
+					area1.translateZ(50);
+					scene.add(area1);
 
 
-					// NET
-					cloth = new Cloth(2000, 2000);
-					cloth1 = new Cloth(2000, 2000);
-					cloth.wind = true;
-					cloth1.wind = true;
-					netGeometry1 = new THREE.ParametricGeometry(cloth1.clothFunction, segs, segs);
-					cloth1.setGeometry(netGeometry1);
-					var net1 = new THREE.Mesh(netGeometry1, new THREE.MeshNormalMaterial());
-					//scene.add(net1);
-					// Initialize pins
-					var pins = [];
+					area2Shape =new THREE.Shape();
+
+					area2Shape.lineTo( 15000,0 );
+					area2Shape.lineTo( 15000, 14000 );
+					area2Shape.lineTo( -15000, 14000 );
+					area2Shape.lineTo( -15000,0 );
+					area2Shape.lineTo( -14900,0 );
+					area2Shape.lineTo( -14900,13900 );
+					area2Shape.lineTo( 14900,13900 );
+					area2Shape.lineTo( 14900,0 );
+
+					area2ShapeGeometry = new THREE.ShapeGeometry(area2Shape);
+					area2 = new THREE.Mesh (area2ShapeGeometry, new THREE.MeshNormalMaterial( { } ));
+					area2.rotateY(math.pi);
+					area2.rotateX(-math.pi/2);
+					area2.translateY(-500);
+					area2.translateZ(50);
+					scene.add(area2);
+
+					aggregateGeometry = new THREE.BoxGeometry(5000,5000,500,500);
+					aggregateMaterial = new Physijs.createMaterial(
+													new THREE.MeshNormalMaterial(),
+													1, // friction
+													1  // restitution
+												);
+					aggregate =	new Physijs.CylinderMesh( aggregateGeometry, aggregateMaterial, 0);
+					aggregate.translateX(8000);
+					aggregate.translateZ(-1800);
+					scene.add(	aggregate );
+
+					loader1.load('js/three.js/examples/fonts/gentilis_bold.typeface.json', function ( response ) {
+						var urtextShape = new THREE.TextGeometry("USER  ROBOT", {font: response,
+							        size: 20, // font size
+							        height: 1, // how much extrusion (how thick / deep are the letters)
+							        curveSegments: 12,
+							        bevelThickness: 1,
+							        bevelSize: 1,
+							        bevelEnabled: true}
+										);
+						urtextShape.computeBoundingBox();
+						var urtextMaterial = new THREE.MeshBasicMaterial({color: 0x660000});
+						var urtextMesh = new THREE.Mesh(urtextShape, urtextMaterial);
+						urtextMesh.translateX(6200);
+						urtextMesh.translateZ(-1500);
+						urtextMesh.translateY(1600);
+						urtextMesh.scale.set(25, 25, 25);
+						scene.add(urtextMesh);
+					} );
+
+					penaltyShape = new THREE.Shape();
+
+					var circleRadius = 400;
+					penaltyShape.moveTo( 0, circleRadius );
+					penaltyShape.quadraticCurveTo( circleRadius, circleRadius, circleRadius, 0 );
+					penaltyShape.quadraticCurveTo( circleRadius, -circleRadius, 0, -circleRadius );
+					penaltyShape.quadraticCurveTo( -circleRadius, -circleRadius, -circleRadius, 0 );
+					penaltyShape.quadraticCurveTo( -circleRadius, circleRadius, 0, circleRadius );
+
+					penaltyShapeGeometry = new THREE.ShapeGeometry(penaltyShape);
+					penalty = new THREE.Mesh (penaltyShapeGeometry, new THREE.MeshNormalMaterial( { } ));
+					penalty.rotateX(-math.pi/2);
+					penalty.translateY(-10000);
+					penalty.translateZ(10);
+					penalty.scale.set(0.5,0.5,0.5);
+					scene.add(penalty);
+
+					// net geometry
+					cloth1 = new Cloth(7000, 3700, 0, new THREE.Vector3(0, 1900, -2000)); // front
+					cloth2 = new Cloth(7000, 0, 1600, new THREE.Vector3(0, 3700, -1200)); // up
+					cloth3 = new Cloth(0, 3700, 1600, new THREE.Vector3(-3500, 1900, -1200)); // right
+					cloth4 = new Cloth(0, 3700, 1600, new THREE.Vector3(3500, 1900, -1200)); // left
+
+					var loaderNet = new THREE.TextureLoader();
+					var clothTexture1 = loaderNet.load( 'images/net.png' );
+					var clothTexture2 = loaderNet.load( 'images/net.png' );
+					var clothTexture3 = loaderNet.load( 'images/net.png' );
+					var clothTexture4 = loaderNet.load( 'images/net.png' );
+
+					clothTexture1.wrapS = clothTexture1.wrapT = THREE.RepeatWrapping;
+					var clothMaterial1 = 	Physijs.createMaterial(
+														new THREE.MeshPhongMaterial({
+															specular: 0x030303,
+															map: clothTexture1,
+															side: THREE.DoubleSide,
+															alphaTest: 0.5
+														}),
+														1, // friction
+														1  // restitution
+													);
+					var clothMaterial2 = 	Physijs.createMaterial(
+															new THREE.MeshPhongMaterial({
+																specular: 0x030303,
+																map: clothTexture2,
+															side: THREE.DoubleSide,
+															alphaTest: 0.5
+															}),
+															1, // friction
+															1  // restitution
+														);
+					var clothMaterial3 = 	Physijs.createMaterial(
+												new THREE.MeshPhongMaterial({
+												specular: 0x030303,
+												map: clothTexture3,
+												side: THREE.DoubleSide,
+												alphaTest: 0.5
+												}),
+												1, // friction
+												1  // restitution
+											);
+				 	var clothMaterial4 = 	Physijs.createMaterial(
+				 						new THREE.MeshPhongMaterial({
+				 							specular: 0x030303,
+				 							map: clothTexture4,
+				 						side: THREE.DoubleSide,
+				 						alphaTest: 0.5
+				 						}),
+				 						1, // friction
+				 						1  // restitution
+				 					);
+
+
+					var pins=[];
 					for (var i=0; i<=segs; i++) {
 						pins.push(i);
 						pins.push(i*(segs+1));
 						pins.push((i+1)*(segs+1)-1);
 						pins.push((segs+1)*(segs+1)-1-i);
 					}
-					cloth.pins = pins;
-					var pins = [];
-					for (var i=0; i<segs; i++) {
-						pins.push(i);
-						pins.push(i*11);
-						pins.push((i+1)*11-1);
-						pins.push(120-i);
-					}
-					cloth1.pins = pins;
 
-					var loaderNet = new THREE.TextureLoader();
-					var clothTexture = loaderNet.load( 'images/netthick.png' );
-					clothTexture.wrapS = clothTexture.wrapT = THREE.RepeatWrapping;
+					cloth1.pins=pins;
+					cloth2.pins=pins;
+					cloth3.pins=pins;
+					cloth4.pins=pins;
 
-					//clothTexture.repeat.set( 1, 1 );
-				  clothTexture.anisotropy = 100;
 
-					var clothMaterial = new THREE.MeshPhongMaterial( {
-						specular: 0x030303,
-						map: clothTexture,
-						side: THREE.DoubleSide,
-						alphaTest: 0.5
-					} );
+					cloth1.wind = true;
+					cloth2.wind = true;
+					cloth3.wind = true;
+					cloth4.wind = true;
 
-					// net geometry
-					netGeometry =  new THREE.ParametricGeometry( cloth.clothFunction, segs, segs );
-					cloth.setGeometry(netGeometry);
+					net1Geometry =  new THREE.ParametricGeometry( cloth1.clothFunction, segs,segs );
+					net2Geometry =  new THREE.ParametricGeometry( cloth2.clothFunction, segs,segs );
+					net3Geometry =  new THREE.ParametricGeometry( cloth3.clothFunction, segs,segs );
+					net4Geometry =  new THREE.ParametricGeometry( cloth4.clothFunction, segs,segs );
 
-					net = new THREE.Mesh( netGeometry, clothMaterial );
-					net.position.set( 0, 0, 0 );
-					net.castShadow = true;
-					scene.add( net );
-					net.customDepthMaterial = new THREE.MeshBasicMaterial( { map: clothTexture, transparent: true } ) ;
 
+					var net1Mesh = new THREE.Mesh(net1Geometry, clothMaterial1 );
+					var net2Mesh = new THREE.Mesh(net2Geometry, clothMaterial2 );
+					var net3Mesh = new THREE.Mesh(net3Geometry, clothMaterial3 );
+					var net4Mesh = new THREE.Mesh(net4Geometry, clothMaterial4 );
+
+					scene.add(net1Mesh);
+					scene.add(net2Mesh);
+					scene.add(net3Mesh);
+					scene.add(net4Mesh);
+
+					cloth1.setGeometry(net1Geometry);
+					cloth2.setGeometry(net2Geometry);
+					cloth3.setGeometry(net3Geometry);
+					cloth4.setGeometry(net4Geometry);
 
 					// Create the robot arm according to the DH table
 					var T = new THREE.Matrix4();
@@ -257,7 +490,6 @@
 														1  // restitution
 													);
 
-						//joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i],0);
 						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
 						scene.add( joints[i] );
 
@@ -265,10 +497,7 @@
 							var n = i;
 							return function() {console.log('joint' + n + ' collision')};
 						})());
-
 					}
-
-					//scene.add( robot_arm );
 
 					// BALL
 					ballGeometry = new THREE.SphereGeometry( ballSize, 32, 32 );
@@ -282,48 +511,30 @@
 						ballMaterial,
 						10 // mass
 					);
-
-					//ball.translateZ(ballInitPosition[2]);
-					//ball.translateY(ballInitPosition[1]);
-
-					//ball.setCcdMotionThreshold(0.1);
-					//ball.setCcdSweptSphereRadius(25);
+					cloth1.setBall(ball);
+					cloth2.setBall(ball);
+					cloth3.setBall(ball);
+					cloth4.setBall(ball);
 
 					scene.add(ball);
-					cloth.setBall(ball);
-					cloth1.setBall(ball);
 
 					//GROUND
 					var loader= new THREE.TextureLoader();
 				  ground_material = Physijs.createMaterial(
-						new THREE.MeshLambertMaterial({ map: loader.load( 'images/grass.png' ) }),
+						new THREE.MeshLambertMaterial({ color: 0xffffff,  shading: THREE.SmoothShading,transparent: true ,opacity:0.0, color: 0x00ff00} ),
 						.8, // high friction
 						.3 // low restitution
 					);
-					ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
-					ground_material.map.repeat.set( 10, 50 );
 
-					ground_geometry = new THREE.PlaneGeometry(10000, 100000, 100);
+					ground_geometry = new THREE.PlaneGeometry(50000, 800000, 1000);
 					ground = new Physijs.PlaneMesh(	ground_geometry,	ground_material,	0 );
 					ground.rotateX(-math.pi/2);
-					ground.receiveShadow = true;
-					ground.position.y=-1;
 					scene.add(ground);
 
 					//luce NECESSARIA per la texture
 					var light = new THREE.DirectionalLight( 0xFFFFFF );
-					light.position.set( 20, 40, -15 );
+					light.position.set( 0, 1000,  1000);
 					light.target.position.copy( scene.position );
-					light.castShadow = true;
-					light.shadow.camera.left = -60;
-					light.shadow.camera.top = -60;
-					light.shadow.camera.right = 60;
-					light.shadow.camera.bottom = 60;
-					light.shadow.camera.near = 20;
-					light.shadow.camera.far = 200;
-					light.shadow.bias = -.0001;
-					light.shadow.mapSize.width = light.shadow.mapSize.height = 2048;
-					//light.shadowDarkness = .7;
 					scene.add( light );
 
 					// SHOOT ARROW
@@ -338,11 +549,7 @@
 					arrowShape.lineTo( -50, 0 );
 					arrowGeometry = new THREE.ShapeGeometry(arrowShape);
 					shootArrow = new THREE.Mesh(arrowGeometry, new THREE.MeshNormalMaterial( { } ));
-
-					//shootArrow.translateZ(ballInitPosition[2] - 50);
-					//shootArrow.rotateX(-math.pi/2);
-					//shootArrow.rotateY(0);
-
+					shootArrow.scale.set(2, 2, 2);
           scene.add(shootArrow);
 
 					// FORCE BAR
@@ -354,16 +561,11 @@
 					barShape.lineTo(0, 0);
 					barGeometry = new THREE.ShapeGeometry(barShape);
 					forceBar = new THREE.Mesh(barGeometry, new THREE.MeshNormalMaterial());
-					//forceBar.position.x = 200;
-					//forceBar.position.z = ballInitPosition[2];
-
 					scene.add(forceBar);
 
 					// To move the scene according to mouse events
 					controls = new THREE.OrbitControls( camera, renderer.domElement );
-					//controls.enabled = false;
-
-			    document.body.appendChild( renderer.domElement );
+					document.body.appendChild( renderer.domElement );
 
 					stats = new Stats();
 					document.body.appendChild( stats.dom );
@@ -383,7 +585,6 @@
 			function createText() {
 				text = game.pointsUser + " - " + game.pointsRobot;
 				// Text points count
-				var loader = new THREE.FontLoader();
 
 				scene.remove(textMesh);
 				loader.load('js/three.js/examples/fonts/gentilis_bold.typeface.json', function ( response ) {
@@ -398,10 +599,10 @@
 					textShape.computeBoundingBox();
 					textMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
 					textMesh = new THREE.Mesh(textShape, textMaterial);
-					//textMesh.translateY(4000);
-					textMesh.translateZ(ballInitPosition[2] - 3000);
-					textMesh.translateX(1000);
-					textMesh.scale.set(20, 20, 20);
+					textMesh.translateX(7000);
+					textMesh.translateZ(-1500);
+					textMesh.translateY(600);
+					textMesh.scale.set(40, 40, 40);
 					scene.add(textMesh);
 				} );
 			}
@@ -418,32 +619,29 @@
 
 				// reset shootArrow
 				shootArrow.position.z = (ballInitPosition[2] - 50);
-				//shootArrow.rotateX(-math.pi/2)
 				shootArrow.rotation.set(-math.pi/2,0,0,'XYZ');
 				shootArrowYAngle = 0;
 				shootArrowXAngle = 0;
-				//shootArrow.rotateZ(shootArrowYAngle);
-				//shootArrow.rotateX(shootArrowXAngle);
 
 				// reset forceBar
-				forceBar.position.x = 200;
+				forceBar.position.x = 300;
 				forceBar.position.z = ballInitPosition[2];
 				percForce = 1.0;
-				forceBar.scale.setY(percForce);
+				forceBar.scale.set(2, 2 * percForce, 2);
 
 				recomputeShootForces();
+				// reset ball
+				ball.setLinearVelocity(new THREE.Vector3(0, 0, 0));
+				ball.setAngularVelocity(new THREE.Vector3(0, 0, 0));
 			}
 
 			function initEventHandling() {
 					var handleKeyPress = function(evt) {
-							var shootAngleStep = math.pi/48, shootForceStep = 0.1;
+							var shootAngleStep = math.pi/100, shootForceStep = 0.1;
 							var shootMaxXAngle = math.pi/2, shootMinXAngle = 0;
 							var shootMaxYAngle = math.pi/6, shootMinYAngle = -math.pi/3;
 							if (evt.keyCode == 32) { // 32 = spacebar
-								//if (game_state == GameState.READY) {
-									ball.applyCentralImpulse(ballForce); // Apply force to the ball
-								//	game_state = GameState.SHOOT;
-								//}
+								ball.applyCentralImpulse(ballForce);
 							} else if (evt.keyCode == 65) { // 37 = left arrow
 								shootArrowYAngle += (shootArrowYAngle + shootAngleStep < shootMaxYAngle) ? shootAngleStep : 0;
 								recomputeShootForces();
@@ -465,12 +663,9 @@
 							}
 					};
 
-					//document.addEventListener('keypress', handleKeyPress);
 					document.addEventListener('keydown', handleKeyPress);
-					//document.addEventListener('keydown', function(evt) {console.log(evt.keyCode)});
 
 					var handleCollision = function(obj) {
-						console.log('ball collision');
 					};
 
 					ball.addEventListener('collision', handleCollision);
@@ -481,32 +676,59 @@
 			animate = function () {
 				var time = Date.now();
 
-				cloth.windStrength = Math.cos( time / 7000 ) * 20 + 40;
-				cloth.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth.windStrength );
-				cloth1.windStrength = Math.cos( time / 70 ) * 50 + 140;
+				cloth1.windStrength = Math.cos( time / 7000 ) * 20 + 40;
 				cloth1.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth1.windStrength );
-				cloth.simulate( time );
+				cloth2.windStrength = Math.cos( time / 7000 ) * 20 + 40;
+				cloth2.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth2.windStrength );
+				cloth3.windStrength = Math.cos( time / 7000 ) * 20 + 40;
+				cloth3.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth3.windStrength );
+				cloth4.windStrength = Math.cos( time / 7000 ) * 20 + 40;
+				cloth4.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth4.windStrength );
+
+				cloth1.wind = true;
+				cloth2.wind = true;
+				cloth3.wind = true;
+				cloth4.wind = true;
+				var p = cloth1.particles;
+				for ( var i = 0, il = p.length; i < il; i ++ ) {
+					net1Geometry.vertices[ i ].copy( p[ i ].position );
+				}
+				var p = cloth2.particles;
+				for ( var i = 0, il = p.length; i < il; i ++ ) {
+					net2Geometry.vertices[ i ].copy( p[ i ].position );
+				}
+				var p = cloth3.particles;
+				for ( var i = 0, il = p.length; i < il; i ++ ) {
+					net3Geometry.vertices[ i ].copy( p[ i ].position );
+				}
+				var p = cloth4.particles;
+				for ( var i = 0, il = p.length; i < il; i ++ ) {
+					net4Geometry.vertices[ i ].copy( p[ i ].position );
+				}
+				net1Geometry.computeFaceNormals();
+				net1Geometry.computeVertexNormals();
+				net1Geometry.normalsNeedUpdate = true;
+				net1Geometry.verticesNeedUpdate = true;
+
+				net2Geometry.computeFaceNormals();
+				net2Geometry.computeVertexNormals();
+				net2Geometry.normalsNeedUpdate = true;
+				net2Geometry.verticesNeedUpdate = true;
+
+				net3Geometry.computeFaceNormals();
+				net3Geometry.computeVertexNormals();
+				net3Geometry.normalsNeedUpdate = true;
+				net3Geometry.verticesNeedUpdate = true;
+
+				net4Geometry.computeFaceNormals();
+				net4Geometry.computeVertexNormals();
+				net4Geometry.normalsNeedUpdate = true;
+				net4Geometry.verticesNeedUpdate = true;
+
 				cloth1.simulate( time );
-
-				var p = cloth.particles;
-				var p1 = cloth1.particles;
-				//console.log(p[37].position);
-				for ( var i = 0; i < p.length; i ++ ) {
-					netGeometry.vertices[ i ].copy( p[ i ].position );
-				}
-				for ( var i = 0; i < p1.length; i ++ ) {
-					//console.log(p1[i].position);
-					netGeometry1.vertices[ i ].copy( p1[ i ].position );
-				}
-				netGeometry.computeFaceNormals();
-				netGeometry.computeVertexNormals();
-				netGeometry.normalsNeedUpdate = true;
-				netGeometry.verticesNeedUpdate = true;
-				netGeometry1.computeFaceNormals();
-				netGeometry1.computeVertexNormals();
-				netGeometry1.normalsNeedUpdate = true;
-				netGeometry1.verticesNeedUpdate = true;
-
+				cloth2.simulate( time );
+				cloth3.simulate( time );
+				cloth4.simulate( time );
 
 			  requestAnimationFrame( animate );
 
@@ -520,21 +742,22 @@
 			}
 
 			function updateGameState() {
-				//console.log(ball.getLinearVelocity().z);
 				if (game.state == GameState.READY && ball.getLinearVelocity().z < 0 && ball.position.z != ballInitPosition[2]) {
 					game.state = GameState.SHOOT;
 				} else if (game.state == GameState.SHOOT) {
 					if (ball.getLinearVelocity().z > 0) {
 						game.state = GameState.SAVED;
-					} else if (ball.position.z < -200){
-						game.state = GameState.MISSED;
+					} else if (ball.position.z < -500){
+						if (ball.position.x < 3500 && ball.position.x > -3500 )
+							game.state = GameState.GOAL;
+						else
+							game.state = GameState.MISSED;
 					}
 				}
 				if (game.state != GameState.READY && game.timeSinceChange > RESET_TIME) {
 					game.state = GameState.READY;
 					setUpReady();
 				}
-				textMesh.lookAt(camera.position);
 			}
 
 			function recomputeShootForces() {
@@ -544,12 +767,55 @@
 					shootArrow.rotateX(shootArrowXAngle);
 
 					// scale force bar
-					forceBar.scale.setY(percForce);
+					forceBar.scale.set(2, 2 * percForce, 2);
 
 					// compute the forces
 					ballForce.setX(math.cos(shootArrowXAngle) * math.sin(-shootArrowYAngle) * ballTotalForce * percForce);
 					ballForce.setY(math.sin(shootArrowXAngle) * ballTotalForce * percForce);
 					ballForce.setZ(-1 * math.cos(shootArrowXAngle) * math.cos(shootArrowYAngle) * ballTotalForce * percForce);
+			}
+
+
+			function loadSkyBox(){
+				texture_placeholder = document.createElement( 'canvas' );
+				texture_placeholder.width = 648;
+				texture_placeholder.height = 648;
+
+				var context = texture_placeholder.getContext( '2d' );
+				context.fillStyle = 'rgb( 200, 200, 200 )';
+				context.fillRect( 0, 0, texture_placeholder.width, texture_placeholder.height );
+
+				var materials = [
+
+					loadTexture( 'images/devils_advocate_rt.jpg' ), // right
+					loadTexture( 'images/devils_advocate_lf.jpg' ), // left
+					loadTexture( 'images/devils_advocate_up.jpg' ), // top
+					loadTexture( 'images/devils_advocate_dn.jpg' ), // bottom
+					loadTexture( 'images/devils_advocate_bk.jpg' ), // back
+					loadTexture( 'images/devils_advocate_ft.jpg' )  // front
+
+				];
+
+				var mesh = new THREE.Mesh( new THREE.BoxGeometry( SkyBox.x, SkyBox.y, SkyBox.z, 7, 7, 7 ), new THREE.MultiMaterial( materials ) );
+				mesh.scale.x = - 1;
+					mesh.position.y= SkyBox.y/2;
+				scene.add( mesh );
+			}
+
+			function loadTexture( path ) {
+					var texture = new THREE.Texture( texture_placeholder );
+					var material = new THREE.MeshBasicMaterial( { map: texture, overdraw: 0.5 } );
+
+					var image = new Image();
+					image.onload = function () {
+
+						texture.image = this;
+						texture.needsUpdate = true;
+
+					};
+					image.src = path;
+
+					return material;
 			}
 
 			function computeJoints() {
@@ -576,52 +842,13 @@
 						}
 					} else {
 						jointVelMax = 0.01;
-						var d = 0;//1000 * shootArrow.rotation.z * -1;
-					//	if (shootArrow.rotation.z > 0)
-					//		d = -1000;
-					//	if (shootArrow.rotation.z < 0)
-					//		d = 500;
+						var d = 0;
 						parser.eval(
 							`rd = [`+ d +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
 						);
 					}
-					parser.eval(
-						`rd = [`+ 0 +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
-					);
-					//console.log((parser.get(`rd`).toString()));
-					// target position as ball position
-					//if (ball.position.z > 4000) {
-					//	parser.eval(
-					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
-					//	);
-					//	deltaT = deltaTDef;
-					//} else if (ball.position.z < -1000) {
-					//	parser.eval(
-					//		//`rd = [` + camera.position.x + ',' + camera.position.y + ',' + 0 + `]`
-					//		`rd = [0, 2000, 0]`
-					//	);
-					//	deltaT = deltaTDef;
-					//} else if (ball.position.z > 1000) {
-					//	parser.eval(
-					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + (-2000) + `]`
-					//	);
-					//	deltaT = deltaTDef;
-					//	//parser.eval(
-					//	//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
-					//	//);
-					//} else {
-					//	//parser.eval(
-					//	//	`rd = [` + ball.position.x + ',' + ball.position.y + ',' + 0 + `]`
-					//	//);
-					//	parser.eval(
-					//		`rd = [` + ball.position.x + ',' + ball.position.y + ',' + ball.position.z + `]`
-					//	);
-					//	//for (var i=0; i<n_joints; i++) {
-					//	//	deltaT[i] *= 1.02;
-					//	//}
-					//}
 					//parser.eval(
-					//	`rd = [0, 2000, 0]`
+					//	`rd = [`+ 0 +`, l[1]+l[2]+l[3]+l[4] + 1000, 0]`
 					//);
 
 					// doesn't make the "hand" going inside the ground
@@ -635,25 +862,10 @@
 					// Take gradient error
 					parser.eval(`qerr = transpose(J(q[1], q[2], q[3], q[4])) * cerr`);
 
-					//var cerr = parser.get('cerr');
-					//var qerr = parser.get('qerr');
-
-					// Limit joint displacements
-					//for (var i=0; i<n_joints; i++) {
-					//	if (math.abs(qerr.get([i])) > maxDisp) {
-					//		deltaT[i] *= 1.01;
-					//	} else if (math.abs(qerr.get([i])) < minDisp){
-					//		deltaT[i] /= 1.01;
-					//	}
-					//}
-
-					//parser.eval(`vel = [`+ deltaT.toString() +`] .* qerr`);
 					parser.set(`vel`, []);
 					for (var i=1; i<=n_joints; i++) {
 						parser.eval(`vel[`+ i +`] = min(abs(`+ deltaT[i-1].toString() +` * qerr[`+ i +`]), `+ jointVelMax +`) * sign(qerr[`+ i +`])`);
 					}
-
-					//console.log(parser.get(`vel`));
 
 					parser.eval(`q = q + vel`);
 					q = parser.get('q');
@@ -663,16 +875,6 @@
 						q.set([0], math.pi);
 					else if (q.get([0]) < 0)
 						q.set([0], 0);
-
-
-					//console.log('q    ' + parser.eval(`q`).toString());
-					//console.log('f    ' + parser.eval(`f(q[1], q[2], q[3], q[4])`).toString());
-					//console.log('cerr ' + cerr.toString());
-					//console.log('qerr ' + qerr.toString());
-					//console.log('delT ' + deltaT.toString());
-					//console.log('d*qe ' + parser.eval(`[`+ deltaT.toString() +`] .* qerr`));
-					//console.log('q    ' + q.toString());
-					//console.log(parser.eval(`J(q[1], q[2], q[3], q[4])`));
 			}
 
 			function updateJoints() {
@@ -691,27 +893,16 @@
 					if (i == n_joints-1)
 						S.multiply(new THREE.Matrix4().makeRotationZ(math.pi/2));
 
-					//if (i>0)
-					//	M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tx(dh[i-1][0], dh[i-1][1])).toArray())));//dh[i][2])).toArray())));
-					//M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Tz(q.get([i]), dh[i][2])).toArray())));//dh[i][2])).toArray())));
-
 					if (i>0)
 						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Txz(dh[i-1][0], dh[i-1][1], dh[i][2], q.get([i])).toArray()))));
 					else
 						M.multiply(new THREE.Matrix4().fromArray(math.flatten(math.transpose(Txz(0, 0, dh[i][2], q.get([i])).toArray()))));
 
 					var T = ((new THREE.Matrix4().multiply(M)).multiply(S)).multiply(Inv);
-					//console.log(T.elements);
-					//console.log(q.get([i]));
-
-
 
 					joints[i].applyMatrix(T);
 					joints[i].__dirtyPosition = true;
 					joints[i].__dirtyRotation = true;
-					//console.log(joints[i]);
-					//console.log(arrowHelperX[i]);
-
 				}
 			}
 			window.onload = init;

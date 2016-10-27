@@ -13,10 +13,7 @@
 var DAMPING = 0.03;
 var DRAG = 1 - DAMPING;
 var MASS = 0.1;
-var restDistance = 25;
-
-//var xSegs = 20;
-//var ySegs = 20;
+var restDistance = 0.1;
 
 var GRAVITY = 981 * 1.4;
 var gravity = new THREE.Vector3( 0, - GRAVITY, 0 ).multiplyScalar( MASS );
@@ -24,23 +21,20 @@ var gravity = new THREE.Vector3( 0, - GRAVITY, 0 ).multiplyScalar( MASS );
 var TIMESTEP = 18 / 1000;
 var TIMESTEP_SQ = TIMESTEP * TIMESTEP;
 
-
-//var ballPosition = new THREE.Vector3( 0, - 45, 0 );
-//var ballSize = 60; //40
-
-
-
-function Cloth(width, height ) {
+function Cloth(width, height, depth, centerPosition) {
 	this.geometry;
 	this.ball;
 	this.width = width;
 	this.height = height;
+	this.depth = depth;
+	this.centerPosition = centerPosition;
 	this.pins = [];
 	this.tmpForce = new THREE.Vector3();
 	this.lastTime;
 	this.diff = new THREE.Vector3();
 
 	this.collided_before = [];
+	this.some_collided_before = false;
 	this.first_contact_vel = new THREE.Vector3(0,0,0);
 	this.first_contact_point = [];
 
@@ -70,7 +64,7 @@ function Cloth(width, height ) {
 	for ( v = 0; v <= this.h; v ++ ) {
 		for ( u = 0; u <= this.w; u ++ ) {
 			this.particles.push(
-				new Particle( u / this.w, v / this.h, 0, MASS )
+				new Particle( u / this.w, v / this.h, MASS )
 			);
 			this.collided_before.push(false);
 		}
@@ -114,19 +108,21 @@ function Cloth(width, height ) {
 
 	function plane() {
 		return function(u,v) {
-			var x = ( u - 0.5 ) * width;
-			var y = ( v + 0.5 ) * height;
-			var z = 0;
-			//console.log(x + " " +y);
-
+			var x = 0, y = 0, z = 0;
+			if (width != 0) {
+				x = centerPosition.x + ( u - 0.5 ) * width;
+				y = centerPosition.y + ( v - 0.5) * height;
+			} else {
+				x = centerPosition.x;
+				y = centerPosition.y + ( u - 0.5 ) * height;
+			}
+			z = centerPosition.z + ( v - 0.5) * depth;
 			return new THREE.Vector3( x, y, z );
 		}
 	};
 
-	function Particle( x, y, z, mass ) {
-		//console.log(this.clothFunction(3,4));
+	function Particle( x, y, mass ) {
 		this.position = clothFunction( x, y ); // position
-		//console.log(x + " " + y);
 		this.previous = clothFunction( x, y ); // previous
 		this.original = clothFunction( x, y );
 		this.a = new THREE.Vector3( 0, 0, 0 ); // acceleration
@@ -210,52 +206,71 @@ function Cloth(width, height ) {
 			var pos = particle.position;
 			//console.log(pos);
 			this.diff.subVectors( pos, this.ball.position );
-			//console.log(this.diff);
-			//console.log("diff: " + this.diff.z);
-			if ( this.diff.length() < ballSize || this.collided_before[i]) {
-				// collided
+			originDiff = this.diff;
 
+			var planeDiff = new THREE.Vector3();
+			if (this.width == 0) {
+				planeDiff = new THREE.Vector3(0, this.diff.y, this.diff.z);
+			} else if (this.height == 0) {
+				planeDiff = new THREE.Vector3(this.diff.x, 0, this.diff.z);
+			} else {
+				planeDiff = new THREE.Vector3(this.diff.x, this.diff.y, 0);
+				//console.log(this.diff.x + " " + this.diff.y);
+			}
+
+			if ( this.diff.length() < ballSize || this.collided_before[i] ||
+						(planeDiff.length() < ballSize && this.some_collided_before)) {
+				// collided
 				if (this.first_contact_point != undefined && this.ball.position.z < this.first_contact_point.z){
 					this.diff.normalize().multiplyScalar( -1 * ballSize );
 				} else {
 					this.diff.normalize().multiplyScalar( ballSize );
 				}
 				pos.copy(this.ball.position).add(this.diff);
-				//console.log("2: ");
-				//console.log(this.diff);
-				//console.log(this.diff.length());
 				if (!this.collided_before[i]) {
 					this.first_contact_vel = this.ball.getLinearVelocity();
 					this.first_contact_point[i] = new THREE.Vector3(pos.x, pos.y, pos.z);
 				}
 				this.collided_before[i] = true;
+				this.some_collided_before = true;
 
-				//var velc = (new THREE.Vector3).copy(this.ball.getLinearVelocity());
-				//this.ball.getLinearVelocity().sub(new THREE.Vector3(1000, 1000, 1000));
-
-				//var diffOrigin = new THREE.Vector3().subVectors(particle.original, this.ball.position);
-				//if (diffOrigin.length() > 5 * ballSize) {
-				//ball.applyCentralImpulse(this.ball.getLinearVelocity().normalize().multiplyScalar(-5));
-				if (this.ball.getLinearVelocity().z < 200) {
-					var sum = 0;
-					for (var c=0; c<this.collided_before.length; c++) {
-						if (this.collided_before[i])
-							++sum;
-					}
-					ball.applyCentralImpulse(new THREE.Vector3(0, 0, 60000/sum));
+				var vel;
+				if (this.width == 0) {
+					vel = Math.abs(this.ball.getLinearVelocity().x);
+				} else {
+					vel = this.ball.getLinearVelocity().z;
 				}
-				//console.log(this.ball.getLinearVelocity().length());
-				//if (this.ball.getLinearVelocity().z > 0 && this.ball.getLinearVelocity().length() > this.first_contact_vel.divideScalar(-2).length()) {
-//					this.collided_before = false;
-//			  }
-				//var diffFirst = new THREE.Vector3().subVectors(pos, this.first_contact_point[i]);
-				var diffFirst = Math.abs(pos.z - this.first_contact_point[i].z); //new THREE.Vector3().subVectors(pos, this.first_contact_point[i]);
-//				console.log(this.ball.position);
-				console.log(pos);
-				console.log(this.first_contact_point[i]);
-				console.log(diffFirst);
-				if (game.state == GameState.READY || (this.ball.getLinearVelocity().z > 0 && diffFirst < 100)) {
+				var sum = 0;
+				for (var c=0; c<this.collided_before.length; c++) {
+					if (this.collided_before[i])
+					++sum;
+				}
+				if (vel < 500) {
+					ball.applyCentralImpulse(originDiff.normalize().multiplyScalar(1000000/sum));
+					//ball.applyCentralImpulse(new THREE.Vector3(0,0,100000/sum));
+				}
+
+				var diffFirst;
+				if (this.width == 0) {
+					diffFirst = (pos.x - particle.original.x);// this.first_contact_point[i].x);
+				} else if (this.height == 0) {
+					diffFirst = (pos.y - particle.original.y);//this.first_contact_point[i].y);
+				} else {
+					diffFirst = (pos.z - particle.original.z);//this.first_contact_point[i].z);
+				}
+				var toll = 2000;
+				if (pos.x > -3500 && pos.x < 3500 && pos.z > -1600
+						|| pos.x > 3500+toll || pos.x < -3500-toll
+						|| pos.z < -1600-toll) {
 					this.collided_before[i] = false;
+					if (sum == 1) {
+						this.some_collided_before = false;
+					}
+					this.particles[i].position.copy(this.particles[i].original);
+				}
+				if (game.state == GameState.READY) {
+					this.collided_before[i] = false;
+					this.some_collided_before = false;
 				}
 			}
 		}
@@ -265,24 +280,10 @@ function Cloth(width, height ) {
 		for ( i = 0, il = this.pins.length; i < il; i ++ ) {
 			var xy = this.pins[ i ];
 			var p = this.particles[ xy ];
-			//console.log(p);
 			p.position.copy( p.original );
 			p.previous.copy( p.original );
 		}
 	}
 
-	//this.particles = particles;
-	//this.constraints = constraints;
-//
 	this.clothFunction = clothFunction;
-//
-	//this.index = index;
-//
-	//this.plane = plane;
-//
-	//this.Particle = Particle;
-
-	//this.satisifyConstraints = satisifyConstraints;
-
-	//this.simulate = simulate;
 }
