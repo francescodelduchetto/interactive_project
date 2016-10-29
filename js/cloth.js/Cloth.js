@@ -218,8 +218,8 @@ function Cloth(width, height, depth, centerPosition) {
 				//console.log(this.diff.x + " " + this.diff.y);
 			}
 
-			if ( this.diff.length() < ballSize || this.collided_before[i] ||
-						(planeDiff.length() < ballSize && this.some_collided_before)) {
+			if ( this.diff.length() < ballSize || this.collided_before[i]){
+						//(planeDiff.length() < ballSize && this.some_collided_before)) {
 				// collided
 				if (this.first_contact_point != undefined && this.ball.position.z < this.first_contact_point.z){
 					this.diff.normalize().multiplyScalar( -1 * ballSize );

@@ -383,7 +383,7 @@
 					cloth1 = new Cloth(7000, 3700, 0, new THREE.Vector3(0, 1900, -2000)); // front
 					cloth2 = new Cloth(7000, 0, 1600, new THREE.Vector3(0, 3700, -1200)); // up
 					cloth3 = new Cloth(0, 3700, 1600, new THREE.Vector3(-3500, 1900, -1200)); // right
-					cloth4 = new Cloth(0, 3700, 1600, new THREE.Vector3(3500, 1900, -1200)); // left
+					cloth4 = new Cloth(0, 3700, -1600, new THREE.Vector3(3500, 1900, -1200)); // left
 
 					var loaderNet = new THREE.TextureLoader();
 					var clothTexture1 = loaderNet.load( 'images/net.png' );
@@ -748,7 +748,7 @@
 					if (ball.getLinearVelocity().z > 0) {
 						game.state = GameState.SAVED;
 					} else if (ball.position.z < -500){
-						if (ball.position.x < 3500 && ball.position.x > -3500 )
+						if (ball.position.x < 3500 && ball.position.x > -3500 && ball.position.y < 3700)
 							game.state = GameState.GOAL;
 						else
 							game.state = GameState.MISSED;
