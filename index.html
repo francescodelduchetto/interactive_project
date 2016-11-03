@@ -57,6 +57,9 @@
 			var geometries = {};
 			var materials = {};
 			var length = {};
+			var fingers = {}, fingerTips = {}, fingerLength = 200, openHand = false,
+					openHandAngle = math.pi/2, closedHandAngle = -openHandAngle,
+					currentAngle = openHandAngle;
 
 			var rd = [-1000, -1000,0];
 			var deltaTDef =  [0.0000001, 0.0000001, 0.0000001, 0.0000001], deltaT = deltaTDef;
@@ -69,7 +72,7 @@
 			var shootArrowYAngle = 0;
 			var ballTotalForce = 50000;
 			var ballForce = new THREE.Vector3(0,0,-ballTotalForce);
-			var percForce = 1.0;
+			var percForce = 1;
 
 
 			var GameState = {
@@ -153,7 +156,7 @@
 						`q = [pi/2, 0, 0, 0]`
 					);
 					parser.eval(
-						`l = [1500, 0, 1500, 300]`
+						`l = [1500, 0, 1500, 200]`
 					)
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
@@ -479,18 +482,63 @@
 					for (var i=0; i<n_joints; i++) {
 						length[i] = dh[i][1];
 
-						if (i == n_joints-1) {
-							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 50, 16 );
-						} else {
-							geometries[i] = new THREE.CylinderGeometry( 50, 30, length[i], 16 );
-						}
 						materials[i] = new Physijs.createMaterial(
-														new THREE.MeshNormalMaterial(),
-														1, // friction
-														1  // restitution
-													);
+							new THREE.MeshNormalMaterial(),
+							1, // friction
+							1  // restitution
+						);
+						if (i == n_joints-1) {
+							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 100, 16 );
+							joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
+							for (var j=0; j<5; j++) {
+								fingers[j] = new Physijs.CylinderMesh(
+												new THREE.CylinderGeometry( 55, 55, fingerLength, 8 ),
+												new Physijs.createMaterial(
+													new THREE.MeshNormalMaterial(),
+													1, // friction
+													1  // restitution
+												)
+											);
+								fingers[j].rotation.y = math.pi/6 * j - math.pi/3;
+								if (j == 4) fingers[j].rotation.y = math.pi/6 * 5 - math.pi/3;
+								fingers[j].rotation.z = currentAngle;
+								fingers[j].translateY(-length[i] - fingerLength / 2);
+								//fingers[j].translateY(length[i]);
+								//fingers[j].translateY(-length[i]);
+								//if (j>0) {
+								//	fingers[j-1].add(fingers[j]);
+								//}
+								joints[i].add(fingers[j]);
 
-						joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
+								fingerTips[j] = new Physijs.CylinderMesh(
+												new THREE.CylinderGeometry( 55, 55, fingerLength, 8 ),
+												new Physijs.createMaterial(
+													new THREE.MeshNormalMaterial(),
+													1, // friction
+													1  // restitution
+												)
+											);
+								fingerTips[j].translateY(-fingerLength);
+								fingerTips[j].translateY(fingerLength/2);
+								fingerTips[j].rotateZ(-math.pi/9);
+								fingerTips[j].translateY(-fingerLength/2);
+
+								//fingerTips[j].rotation.z = ;
+								//fingerTips[j].translateY(length[i] + fingerLength);
+								//fingerTips[j].rotateX(math.pi/10 - math.pi/6);
+								//fingerTips[j].translateY(-length[i] - fingerLength);
+
+								fingers[j].add(fingerTips[j]);
+								//if (j>0) {
+								//	fingerTips[j-1].add(fingerTips[j]);
+								//}
+							}
+							//joints[i].add(fingerTips[0]);
+						} else {
+							geometries[i] = new THREE.CylinderGeometry( 100, 80, length[i], 16 );
+							joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
+						}
+
 						scene.add( joints[i] );
 
 						joints[i].addEventListener('collision', (function(object) {
@@ -822,8 +870,9 @@
 					parser.eval(`sl = l[1]+l[2]+l[3]+l[4]`)
 					var distance_limit = parser.get(`sl`);
 					//&console.log(math.min(ball.position.y, distance_limit));
-					var jointVelMax = 0.07;
+					var jointVelMax = 0.002;
 					if (game.state == GameState.SHOOT) {
+						openHand = true;
 						if (ball.position.z < 1000) {
 							jointVelMax = 0.07;
 							parser.eval(
@@ -841,6 +890,7 @@
 							);
 						}
 					} else {
+						openHand = false;
 						jointVelMax = 0.01;
 						var d = 0;
 						parser.eval(
@@ -859,6 +909,7 @@
 					// UPDATE q vector with new angle values
 					// Cartesian error
 					parser.eval(`cerr = (rd - f(q[1], q[2], q[3], q[4]))`)
+					var cerr = parser.get(`cerr`);
 					// Take gradient error
 					parser.eval(`qerr = transpose(J(q[1], q[2], q[3], q[4])) * cerr`);
 
@@ -875,6 +926,13 @@
 						q.set([0], math.pi);
 					else if (q.get([0]) < 0)
 						q.set([0], 0);
+
+				//	if (math.norm(cerr)< 1000) {
+				//		openHand = true;
+				//	} else {
+				//		openHand = false;
+				//	}
+					//console.log(math.norm(cerr));
 			}
 
 			function updateJoints() {
@@ -904,7 +962,36 @@
 					joints[i].__dirtyPosition = true;
 					joints[i].__dirtyRotation = true;
 				}
+
+				console.log(openHand);
+				//console.log(currentAngle);
+				if (openHand) {
+					if (currentAngle < openHandAngle) {
+						currentAngle += math.pi/100;
+						for (var i=0; i<5; i++) {
+							fingers[i].translateY(fingerLength/2);
+							fingers[i].rotateZ(+math.pi/200);
+							fingers[i].translateY(-fingerLength/2);
+							fingerTips[i].translateY(fingerLength/2);
+							fingerTips[i].rotateZ(+math.pi/200);
+							fingerTips[i].translateY(-fingerLength/2);
+						}
+					}
+				} else {
+					if (currentAngle > closedHandAngle) {
+						currentAngle -= math.pi/100;
+						for (var i=0; i<5; i++) {
+							fingers[i].translateY(fingerLength/2);
+							fingers[i].rotateZ(-math.pi/200);
+							fingers[i].translateY(-fingerLength/2);
+							fingerTips[i].translateY(fingerLength/2);
+							fingerTips[i].rotateZ(-math.pi/200);
+							fingerTips[i].translateY(-fingerLength/2);
+						}
+					}
+				}
 			}
+
 			window.onload = init;
 
 		</script>
