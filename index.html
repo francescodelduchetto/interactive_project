@@ -915,7 +915,6 @@
 
 					// doesn't make the "hand" going inside the ground
 					var rd = parser.get('rd');
-					console.log(rd.get([1]));
 					if (rd.get([1]) < length[n_joints - 1] + fingerLength*2)
 						parser.eval(`rd = [rd[1], `+ (length[n_joints - 1] + fingerLength*2)+`, rd[3]]`);
 
