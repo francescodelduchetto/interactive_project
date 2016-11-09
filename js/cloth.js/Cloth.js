@@ -36,6 +36,7 @@ function Cloth(width, height, depth, centerPosition) {
 	this.collided_before = [];
 	this.some_collided_before = false;
 	this.first_contact_vel = new THREE.Vector3(0,0,0);
+	this.first_contact_sign = undefined;
 	this.first_contact_point = [];
 
 	this.wind = true;
@@ -227,8 +228,12 @@ function Cloth(width, height, depth, centerPosition) {
 					this.diff.normalize().multiplyScalar( ballSize );
 				}
 				pos.copy(this.ball.position).add(this.diff);
-				if (!this.collided_before[i]) {
+				if (!this.collided_before[i] && this.first_contact_sign == undefined) {
 					this.first_contact_vel = this.ball.getLinearVelocity();
+					if (this.width == 0)
+						this.first_contact_sign = math.sign(this.ball.getLinearVelocity().x);
+					else
+						this.first_contact_sign = math.sign(this.ball.getLinearVelocity().z);
 					this.first_contact_point[i] = new THREE.Vector3(pos.x, pos.y, pos.z);
 				}
 				this.collided_before[i] = true;
@@ -236,7 +241,7 @@ function Cloth(width, height, depth, centerPosition) {
 
 				var vel;
 				if (this.width == 0) {
-					vel = Math.abs(this.ball.getLinearVelocity().x);
+					vel = this.ball.getLinearVelocity().x;
 				} else {
 					vel = this.ball.getLinearVelocity().z;
 				}
@@ -245,8 +250,15 @@ function Cloth(width, height, depth, centerPosition) {
 					if (this.collided_before[i])
 					++sum;
 				}
-				if (vel < 500) {
-					ball.applyCentralImpulse(originDiff.normalize().multiplyScalar(1000000/sum));
+
+				//console.log(math.sign(vel) == this.first_contact_sign);
+				if (math.sign(vel) == this.first_contact_sign || (math.sign(vel) != this.first_contact_sign && math.abs(vel) < 500)) {
+						if (this.width == 0) {
+							ball.applyCentralImpulse(new THREE.Vector3(-this.first_contact_sign * 50000/sum, 0, 0)); //originDiff.normalize().multiplyScalar(1000000/sum));
+						} else
+							ball.applyCentralImpulse(new THREE.Vector3(0, 0, 3000000/sum));//originDiff.normalize().multiplyScalar(1000000/sum));
+							//originDiff.x *= -1;
+							//ball.applyCentralImpulse(originDiff.normalize().multiplyScalar(1000000/sum));
 					//ball.applyCentralImpulse(new THREE.Vector3(0,0,100000/sum));
 				}
 
@@ -258,10 +270,11 @@ function Cloth(width, height, depth, centerPosition) {
 				} else {
 					diffFirst = (pos.z - particle.original.z);//this.first_contact_point[i].z);
 				}
-				var toll = 2000;
-				if (pos.x > -3500 && pos.x < 3500 && pos.z > -1600
-						|| pos.x > 3500+toll || pos.x < -3500-toll
-						|| pos.z < -1600-toll) {
+				var toll = 1000;
+			//	if (pos.x > -3500 && pos.x < 3500 && pos.z > -1600
+			//			|| pos.x > 3500+toll || pos.x < -3500-toll
+			//			|| pos.z < -1600-toll) {
+				if (math.abs(diffFirst) < 150 && math.sign(vel) != this.first_contact_sign) {
 					this.collided_before[i] = false;
 					if (sum == 1) {
 						this.some_collided_before = false;
@@ -271,6 +284,7 @@ function Cloth(width, height, depth, centerPosition) {
 				if (game.state == GameState.READY) {
 					this.collided_before[i] = false;
 					this.some_collided_before = false;
+					this.first_contact_sign = undefined;
 				}
 			}
 		}

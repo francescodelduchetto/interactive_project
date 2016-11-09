@@ -29,6 +29,7 @@
 			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
 			Physijs.scripts.ammo = '../ammo.js';
 			var segs = 40;
+			var light;
 			var loadTexture;
 			var SkyBox = new THREE.Vector3( 120000, 40000, 120000 );
 			var texture_placeholder;
@@ -127,6 +128,7 @@
 
 					// SCENE
 					scene = new Physijs.Scene;
+
 					// GRAVITY
 					scene.setGravity(new THREE.Vector3( 0, -1000, 0 ));
 					scene.addEventListener(
@@ -157,7 +159,7 @@
 					);
 					parser.eval(
 						`l = [1500, 0, 1500, 200]`
-					)
+					);
 					parser.eval(
 						`dh(q1, q2, q3, q4) =
 						[    0, l[1], 0, q1;
@@ -165,25 +167,25 @@
 						     0, l[3], 0, q3;
 					       0, l[4], 0, q4]`
 					);
-					 parser.eval(
-						 `Txz(al, a, d, th) =
-						 [         cos(th),        -sin(th),        0,          a;
-						   cos(al)*sin(th), cos(al)*cos(th), -sin(al), -d*sin(al);
-						   sin(al)*sin(th), sin(al)*cos(th),  cos(al),  d*cos(al);
-						                 0,               0,        0,          1]`
-					 );
-					 parser.eval(
-						 `J(q1, q2, q3, q4) =
-						 [ l[4]*sin(q1 + q2)*sin(q3)*sin(q4) - l[1]*sin(q1) - l[3]*sin(q1 + q2)*cos(q3) - l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[2]*sin(q1 + q2), -sin(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -cos(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*cos(q1 + q2)*sin(q3 + q4);
-					 	   l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),  cos(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -sin(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*sin(q1 + q2)*sin(q3 + q4);
-				 		    	                                                                                                                      					0,                                               			   0,               - l[4]*cos(q3 + q4) - l[3]*cos(q3),              -l[4]*cos(q3 + q4)]`
-		 			);
-					 parser.eval(
-						 `f(q1, q2, q3, q4) =
-						 [l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),
- 						  l[2]*sin(q1 + q2) + l[1]*sin(q1) + l[3]*sin(q1 + q2)*cos(q3) + l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[4]*sin(q1 + q2)*sin(q3)*sin(q4),
-                                                                                             										- l[4]*sin(q3 + q4) - l[3]*sin(q3)]`
-					 );
+					parser.eval(
+					 `Txz(al, a, d, th) =
+					 [         cos(th),        -sin(th),        0,          a;
+					   cos(al)*sin(th), cos(al)*cos(th), -sin(al), -d*sin(al);
+					   sin(al)*sin(th), sin(al)*cos(th),  cos(al),  d*cos(al);
+					                 0,               0,        0,          1]`
+					);
+					parser.eval(
+					 `J(q1, q2, q3, q4) =
+					 [ l[4]*sin(q1 + q2)*sin(q3)*sin(q4) - l[1]*sin(q1) - l[3]*sin(q1 + q2)*cos(q3) - l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[2]*sin(q1 + q2), -sin(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -cos(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*cos(q1 + q2)*sin(q3 + q4);
+						   l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),  cos(q1 + q2)*(l[2] + l[4]*cos(q3 + q4) + l[3]*cos(q3)), -sin(q1 + q2)*(l[4]*sin(q3 + q4) + l[3]*sin(q3)), -l[4]*sin(q1 + q2)*sin(q3 + q4);
+						    	                                                                                                                      					0,                                               			   0,               - l[4]*cos(q3 + q4) - l[3]*cos(q3),              -l[4]*cos(q3 + q4)]`
+					);
+					parser.eval(
+					 `f(q1, q2, q3, q4) =
+					 [l[2]*cos(q1 + q2) + l[1]*cos(q1) + l[3]*cos(q1 + q2)*cos(q3) + l[4]*cos(q1 + q2)*cos(q3)*cos(q4) - l[4]*cos(q1 + q2)*sin(q3)*sin(q4),
+						  l[2]*sin(q1 + q2) + l[1]*sin(q1) + l[3]*sin(q1 + q2)*cos(q3) + l[4]*sin(q1 + q2)*cos(q3)*cos(q4) - l[4]*sin(q1 + q2)*sin(q3)*sin(q4),
+					                                                                                 										- l[4]*sin(q3 + q4) - l[3]*sin(q3)]`
+					);
 
 					var dhf = parser.get('dh');
 					Txz = parser.get('Txz');
@@ -337,7 +339,7 @@
 
 					aggregateGeometry = new THREE.BoxGeometry(5000,5000,500,500);
 					aggregateMaterial = new Physijs.createMaterial(
-													new THREE.MeshNormalMaterial(),
+													new THREE.MeshPhongMaterial(),
 													1, // friction
 													1  // restitution
 												);
@@ -577,12 +579,28 @@
 					ground_geometry = new THREE.PlaneGeometry(50000, 800000, 1000);
 					ground = new Physijs.PlaneMesh(	ground_geometry,	ground_material,	0 );
 					ground.rotateX(-math.pi/2);
+					ground.receiveShadow = true;
+					ground.position.y=-1;
 					scene.add(ground);
 
 					//luce NECESSARIA per la texture
-					var light = new THREE.DirectionalLight( 0xFFFFFF );
-					light.position.set( 0, 1000,  1000);
+					var ambientLight = new THREE.AmbientLight( 0xECA233, 0.2 ); // soft white light
+					scene.add( ambientLight );
+
+					light = new THREE.DirectionalLight( 0xFFFFFF,0.6 );
+					light.position.set( 1000, 1000,  1000);
+					light.lookAt(0,0,0);
 					light.target.position.copy( scene.position );
+					light.castShadow = true;
+					light.shadow.camera.left = -60;
+					light.shadow.camera.top = -60;
+					light.shadow.camera.right = 60;
+					light.shadow.camera.bottom = 60;
+					light.shadow.camera.near = 20;
+					light.shadow.camera.far = 200;
+					light.shadow.bias = -.0001;
+					light.shadow.mapSize.width = light.shadow.mapSize.height = 2048;
+					//light.shadowDarkness = .7;
 					scene.add( light );
 
 					// SHOOT ARROW
@@ -597,7 +615,8 @@
 					arrowShape.lineTo( -50, 0 );
 					arrowGeometry = new THREE.ShapeGeometry(arrowShape);
 					shootArrow = new THREE.Mesh(arrowGeometry, new THREE.MeshNormalMaterial( { } ));
-					shootArrow.scale.set(2, 2, 2);
+					shootArrow.scale.set(2, 4, 4);
+					shootArrow.translateY(50);
           scene.add(shootArrow);
 
 					// FORCE BAR
@@ -714,6 +733,7 @@
 					document.addEventListener('keydown', handleKeyPress);
 
 					var handleCollision = function(obj) {
+						console.log('ball collision');
 					};
 
 					ball.addEventListener('collision', handleCollision);
@@ -723,6 +743,16 @@
 
 			animate = function () {
 				var time = Date.now();
+
+			//	if(light.position.y<=0)
+			//		light.color=0xff0000;
+			//	else
+			//		light.color=0xffffff;
+			light.position.set(Math.cos(time/7000)*3000, Math.sin(time/10000)*3000+1000,Math.sin(time/7000)*3000);
+			light.lookAt(0, 0, 0);
+			//console.log(light.position);
+
+
 
 				cloth1.windStrength = Math.cos( time / 7000 ) * 20 + 40;
 				cloth1.windForce.set( Math.sin( time / 2000 ), Math.cos( time / 3000 ), Math.sin( time / 1000 ) ).normalize().multiplyScalar( cloth1.windStrength );
@@ -835,12 +865,12 @@
 
 				var materials = [
 
-					loadTexture( 'images/devils_advocate_rt.jpg' ), // right
-					loadTexture( 'images/devils_advocate_lf.jpg' ), // left
-					loadTexture( 'images/devils_advocate_up.jpg' ), // top
-					loadTexture( 'images/devils_advocate_dn.jpg' ), // bottom
-					loadTexture( 'images/devils_advocate_bk.jpg' ), // back
-					loadTexture( 'images/devils_advocate_ft.jpg' )  // front
+					loadTexture( 'images/sb_iceflow/iceflow_rt.jpg' ), // right
+					loadTexture( 'images/sb_iceflow/iceflow_lf.jpg' ), // left
+					loadTexture( 'images/sb_iceflow/iceflow_up.jpg' ), // top
+					loadTexture( 'images/sb_iceflow/iceflow_dn.jpg' ), // bottom
+					loadTexture( 'images/sb_iceflow/iceflow_bk.jpg' ), // back
+					loadTexture( 'images/sb_iceflow/iceflow_ft.jpg' )  // front
 
 				];
 
@@ -963,7 +993,6 @@
 					joints[i].__dirtyRotation = true;
 				}
 
-				console.log(openHand);
 				//console.log(currentAngle);
 				if (openHand) {
 					if (currentAngle < openHandAngle) {
