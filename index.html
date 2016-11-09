@@ -19,11 +19,6 @@
 		<script src="js/stats.min.js"></script>
 		<script>
 
-		// TODO:
-		//	(1) palla con fisica (gravità con three js)
-		//	(2) traiettoria robot che segue palla
-		//	- textures - luci - mano - gioco - ambientazione
-
 			'use strict';
 
 			Physijs.scripts.worker = 'js/Physijs/physijs_worker.js';
@@ -117,7 +112,7 @@
 					createText();
 			});
 
-			const RESET_TIME = 10000; // [ms]
+			const RESET_TIME = 8000; // [ms]
 
 			init = function () {
 					// RENDERER
@@ -492,6 +487,7 @@
 						if (i == n_joints-1) {
 							geometries[i] = new THREE.CylinderGeometry( length[i], length[i], 100, 16 );
 							joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
+							// create fingers
 							for (var j=0; j<5; j++) {
 								fingers[j] = new Physijs.CylinderMesh(
 												new THREE.CylinderGeometry( 55, 55, fingerLength, 8 ),
@@ -502,16 +498,11 @@
 												)
 											);
 								fingers[j].rotation.y = math.pi/6 * j - math.pi/3;
-								if (j == 4) fingers[j].rotation.y = math.pi/6 * 5 - math.pi/3;
+								if (j == 4)
+									fingers[j].rotation.y = math.pi/6 * 5 - math.pi/3;
 								fingers[j].rotation.z = currentAngle;
 								fingers[j].translateY(-length[i] - fingerLength / 2);
-								//fingers[j].translateY(length[i]);
-								//fingers[j].translateY(-length[i]);
-								//if (j>0) {
-								//	fingers[j-1].add(fingers[j]);
-								//}
 								joints[i].add(fingers[j]);
-
 								fingerTips[j] = new Physijs.CylinderMesh(
 												new THREE.CylinderGeometry( 55, 55, fingerLength, 8 ),
 												new Physijs.createMaterial(
@@ -525,17 +516,8 @@
 								fingerTips[j].rotateZ(-math.pi/9);
 								fingerTips[j].translateY(-fingerLength/2);
 
-								//fingerTips[j].rotation.z = ;
-								//fingerTips[j].translateY(length[i] + fingerLength);
-								//fingerTips[j].rotateX(math.pi/10 - math.pi/6);
-								//fingerTips[j].translateY(-length[i] - fingerLength);
-
 								fingers[j].add(fingerTips[j]);
-								//if (j>0) {
-								//	fingerTips[j-1].add(fingerTips[j]);
-								//}
 							}
-							//joints[i].add(fingerTips[0]);
 						} else {
 							geometries[i] = new THREE.CylinderGeometry( 100, 80, length[i], 16 );
 							joints[i] = new Physijs.CylinderMesh( geometries[i], materials[i], 0);
@@ -591,15 +573,15 @@
 					light.position.set( 1000, 1000,  1000);
 					light.lookAt(0,0,0);
 					light.target.position.copy( scene.position );
-					light.castShadow = true;
-					light.shadow.camera.left = -60;
-					light.shadow.camera.top = -60;
-					light.shadow.camera.right = 60;
-					light.shadow.camera.bottom = 60;
-					light.shadow.camera.near = 20;
-					light.shadow.camera.far = 200;
-					light.shadow.bias = -.0001;
-					light.shadow.mapSize.width = light.shadow.mapSize.height = 2048;
+					//light.castShadow = true;
+					//light.shadow.camera.left = -60;
+					//light.shadow.camera.top = -60;
+					//light.shadow.camera.right = 60;
+					//light.shadow.camera.bottom = 60;
+					//light.shadow.camera.near = 20;
+					//light.shadow.camera.far = 200;
+					//light.shadow.bias = -.0001;
+					//light.shadow.mapSize.width = light.shadow.mapSize.height = 2048;
 					//light.shadowDarkness = .7;
 					scene.add( light );
 
@@ -744,13 +726,13 @@
 			animate = function () {
 				var time = Date.now();
 
-			//	if(light.position.y<=0)
-			//		light.color=0xff0000;
-			//	else
-			//		light.color=0xffffff;
-			light.position.set(Math.cos(time/7000)*3000, Math.sin(time/10000)*3000+1000,Math.sin(time/7000)*3000);
-			light.lookAt(0, 0, 0);
-			//console.log(light.position);
+				//	if(light.position.y<=0)
+				//		light.color=0xff0000;
+				//	else
+				//		light.color=0xffffff;
+				light.position.set(Math.cos(time/7000)*3000, Math.sin(time/10000)*3000+1000,Math.sin(time/7000)*3000);
+				light.lookAt(0, 0, 0);
+				//console.log(light.position);
 
 
 
@@ -933,8 +915,9 @@
 
 					// doesn't make the "hand" going inside the ground
 					var rd = parser.get('rd');
-					if (rd.get([1]) < length[n_joints - 1])
-						parser.eval(`rd = [rd[1], `+ length[n_joints - 1] +`, rd[3]]`);
+					console.log(rd.get([1]));
+					if (rd.get([1]) < length[n_joints - 1] + fingerLength*2)
+						parser.eval(`rd = [rd[1], `+ (length[n_joints - 1] + fingerLength*2)+`, rd[3]]`);
 
 					// UPDATE q vector with new angle values
 					// Cartesian error
